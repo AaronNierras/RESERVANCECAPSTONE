@@ -1,0 +1,8 @@
+# Folders
+node_modules
+docs
+
+# Files
+.env
+.cursor
+

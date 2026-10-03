@@ -1,0 +1,59 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-headline: 'Kross Neue Grotesk', 'Montserrat', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Kross Neue Grotesk', 'Montserrat', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
+  --color-gold: #ffb736;
+  --color-gold-light: #ffd62e;
+  --color-gold-mid: #fdc131;
+  --color-gold-dark: #d29528;
+  --color-gold-accent: #f0a733;
+  --color-purple: #5c297c;
+  --color-purple-mid: #712c83;
+  --color-purple-deep: #682672;
+  --color-purple-dark: #2e0046;
+  --color-purple-panther: #491464;
+  --color-canvas: #fafafa;
+}
+
+:root {
+  --gold: #ffb736;
+  --purple: #5c297c;
+  --purple-panther: #491464;
+  --canvas: #fafafa;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--canvas);
+  color: var(--purple-panther);
+  line-height: 1.5;
+}
+
+::selection {
+  background: var(--gold);
+  color: var(--purple-panther);
+}
+
+.glass-panel {
+  background: rgba(250, 250, 250, 0.94);
+  border: 1px solid rgba(73, 20, 100, 0.18);
+  box-shadow: 0 8px 24px rgba(73, 20, 100, 0.08);
+}
+
+.card-gold-border {
+  border: 2px solid rgba(92, 41, 124, 0.14);
+  border-left: 6px solid var(--gold);
+  background: var(--canvas);
+  border-radius: 1.5rem;
+}
+
+.assessment-secure {
+  user-select: none;
+}
