@@ -16,6 +16,7 @@ use App\Http\Middleware\EnsureRole;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -27,7 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/leaderboards', [LeaderboardController::class, 'index']);
     Route::get('/badges', [BadgeController::class, 'index']);
 
-    Route::middleware(EnsureRole::class.':super_admin')->prefix('super-admin')->group(function () {
+    Route::middleware(EnsureRole::class.':program_chair')->prefix('super-admin')->group(function () {
         Route::get('/dashboard', [SuperAdminController::class, 'dashboard']);
         Route::get('/students', [SuperAdminController::class, 'students']);
         Route::post('/students', [SuperAdminController::class, 'storeStudent']);
@@ -48,18 +49,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/analytics/students/{user}', [AnalyticsController::class, 'studentPerformance']);
     });
 
-    Route::middleware(EnsureRole::class.':faculty,super_admin')->group(function () {
+    Route::middleware(EnsureRole::class.':faculty,program_chair')->group(function () {
         Route::get('/programs', [SuperAdminController::class, 'programs']);
     });
 
-    Route::middleware(EnsureRole::class.':faculty,super_admin')->prefix('faculty')->group(function () {
+    Route::middleware(EnsureRole::class.':faculty,program_chair')->prefix('faculty')->group(function () {
         Route::get('/students', [FacultyStudentController::class, 'index']);
         Route::get('/analytics', [AnalyticsController::class, 'faculty']);
         Route::get('/analytics/students/{user}', [AnalyticsController::class, 'studentPerformance']);
         Route::get('/monitor', [PresenceController::class, 'monitor']);
     });
 
-    Route::middleware(EnsureRole::class.':faculty,super_admin')->group(function () {
+    Route::middleware(EnsureRole::class.':faculty,program_chair')->group(function () {
         Route::get('/activities', [ActivityController::class, 'index']);
         Route::post('/activities', [ActivityController::class, 'store']);
         Route::post('/activities/generate-from-document', [ActivityController::class, 'generateFromDocument']);

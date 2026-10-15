@@ -15,17 +15,42 @@ class PresenceService
 
     /**
      * Whether the account already has an active API login (one session per account).
+     * Stale or offline sessions are cleared so a real logout / closed tab does not lock the account.
      */
     public function hasActiveLogin(User $user): bool
     {
         $this->revokeExpiredLoginTokens();
 
-        return $user->tokens()
+        $session = UserSession::query()->where('user_id', $user->id)->first();
+        if ($session && $session->status === 'offline') {
+            $user->tokens()->delete();
+
+            return false;
+        }
+
+        $recentCutoff = now()->subMinutes(self::ONLINE_WINDOW_MINUTES);
+
+        $hasRecentToken = $user->tokens()
             ->where(function ($query) {
                 $query->whereNull('expires_at')
                     ->orWhere('expires_at', '>', now());
             })
+            ->where(function ($query) use ($recentCutoff) {
+                $query->where('last_used_at', '>=', $recentCutoff)
+                    ->orWhere(function ($inner) use ($recentCutoff) {
+                        $inner->whereNull('last_used_at')
+                            ->where('created_at', '>=', $recentCutoff);
+                    });
+            })
             ->exists();
+
+        if (! $hasRecentToken) {
+            $user->tokens()->delete();
+
+            return false;
+        }
+
+        return true;
     }
 
     /**

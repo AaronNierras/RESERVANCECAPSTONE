@@ -206,28 +206,28 @@ export default function SuperAdminDashboardPage() {
         <div className="dash-actions">
           <QuickActionCard
             tone="plum"
-            to="/superadmin/students"
+            to="/program-chair/students"
             icon={<IconUsers />}
             title="Manage students"
             description="View and manage student accounts"
           />
           <QuickActionCard
             tone="violet"
-            to="/superadmin/faculty"
+            to="/program-chair/faculty"
             icon={<IconUsers />}
             title="Manage faculty"
             description="View and manage faculty accounts"
           />
           <QuickActionCard
             tone="plum"
-            to="/superadmin/activities-factory"
+            to="/program-chair/activities-factory"
             icon={<IconActivity />}
             title="Manage activities"
             description="Create and manage assessment activities"
           />
           <QuickActionCard
             tone="ink"
-            to="/superadmin/activities"
+            to="/program-chair/activities"
             icon={<IconCalendar />}
             title="Faculty activities"
             description="Review activities created by faculty"

@@ -33,7 +33,7 @@ export default function FacultyActivitiesPage() {
     try {
       const res = await client.post(`/super-admin/faculty-activities/${activity.id}/copy`)
       setNotice(res.data.message || 'Assessment copied to your drafts.')
-      navigate(`/superadmin/activities-factory?draft=${res.data.activity.id}`)
+      navigate(`/program-chair/activities-factory?draft=${res.data.activity.id}`)
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to copy this assessment right now.')
     } finally {

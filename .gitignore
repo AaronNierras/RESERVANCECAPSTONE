@@ -1,8 +1,8 @@
 # Folders
-node_modules
-docs
+node_modules/
+docs/
+build/
 
 # Files
 .env
-.cursor
 

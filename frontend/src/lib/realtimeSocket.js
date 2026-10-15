@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client'
+import { getRuntimeConfig } from '../config'
 
 let socket = null
 let currentUserKey = null
@@ -8,8 +9,7 @@ function userKey(user) {
 }
 
 export function getRealtimeSocket(user) {
-  const url = import.meta.env.VITE_REALTIME_URL
-  const secret = import.meta.env.VITE_REALTIME_SECRET
+  const { realtimeUrl: url, realtimeSecret: secret } = getRuntimeConfig()
   if (!user || !url || !secret) return null
 
   const key = userKey(user)
@@ -24,11 +24,11 @@ export function getRealtimeSocket(user) {
       role: user.role,
       name: user.name,
     },
-    transports: ['polling', 'websocket'],
+    transports: ['websocket', 'polling'],
     reconnection: true,
-    reconnectionAttempts: 8,
+    reconnectionAttempts: 12,
     reconnectionDelay: 1000,
-    timeout: 10000,
+    timeout: 15000,
     autoConnect: true,
   })
 

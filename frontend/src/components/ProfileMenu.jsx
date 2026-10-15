@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import Modal from './Modal'
+import '../styles/academic.css'
 
 const ROLE_LABELS = {
-  super_admin: 'Super Admin',
+  program_chair: 'Program Chair',
+  super_admin: 'Superadmin',
   faculty: 'Faculty',
   student: 'Student',
 }
@@ -20,7 +24,10 @@ function initials(name) {
 
 export default function ProfileMenu() {
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
   const rootRef = useRef(null)
 
   useEffect(() => {
@@ -36,9 +43,25 @@ export default function ProfileMenu() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
-  const handleLogout = async () => {
+  const requestLogout = () => {
     setOpen(false)
-    await logout()
+    if (user?.role === 'student') {
+      setConfirmOpen(true)
+      return
+    }
+    logout().then(() => navigate('/login', { replace: true }))
+  }
+
+  const confirmLogout = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await logout()
+      setConfirmOpen(false)
+      navigate('/login', { replace: true })
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -65,11 +88,41 @@ export default function ProfileMenu() {
               {ROLE_LABELS[user?.role] || user?.role || 'User'}
             </p>
           </div>
-          <button type="button" className="portal-profile__logout" onClick={handleLogout} role="menuitem">
+          <button type="button" className="portal-profile__logout" onClick={requestLogout} role="menuitem">
             Log out
           </button>
         </div>
       )}
+
+      <Modal
+        open={confirmOpen}
+        title="Log out?"
+        onClose={() => !busy && setConfirmOpen(false)}
+        footer={(
+          <>
+            <button
+              type="button"
+              className="rounded-lg border border-[#5c297c]/20 px-4 py-2 text-sm font-semibold text-[#491464]"
+              onClick={() => setConfirmOpen(false)}
+              disabled={busy}
+            >
+              Stay signed in
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-[#491464] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              onClick={confirmLogout}
+              disabled={busy}
+            >
+              {busy ? 'Signing out…' : 'Log out'}
+            </button>
+          </>
+        )}
+      >
+        <p className="text-sm leading-relaxed text-[#5c297c]">
+          Are you sure you want to log out?
+        </p>
+      </Modal>
     </div>
   )
 }

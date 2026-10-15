@@ -8,20 +8,42 @@
   background-color: #2e0046;
 }
 
-.login-scene__bg {
+.login-scene__slides {
   position: absolute;
-  inset: -4%;
-  background-image: url('/placeholder.png');
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.login-scene__slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  z-index: 0;
+  transition: opacity 2s ease;
+}
+
+.login-scene__slide.is-visible {
+  opacity: 1;
+  z-index: 1;
+}
+
+.login-scene__photo {
+  position: absolute;
+  inset: -14%;
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;
-  animation: login-bg-drift 32s ease-in-out infinite alternate;
-  will-change: transform, background-position;
+  filter: blur(8px);
+  transform: scale(1.08);
+  animation: login-photo-zoom 40s linear forwards;
+  will-change: transform, filter;
 }
 
 .login-scene__overlay {
   position: absolute;
   inset: 0;
+  z-index: 2;
   background: linear-gradient(
     145deg,
     rgba(46, 0, 70, 0.72) 0%,
@@ -32,9 +54,80 @@
   animation: login-overlay-shift 36s ease-in-out infinite alternate;
 }
 
+.login-scene__wash {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 183, 54, 0.72) 0%,
+    rgba(255, 196, 84, 0.55) 45%,
+    rgba(212, 146, 28, 0.68) 100%
+  );
+}
+
+.login-scene.is-changing .login-scene__wash {
+  animation: login-gold-wash 2s ease forwards;
+}
+
+.login-scene__glitter {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.login-scene__stage {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0.75rem 1rem;
+}
+
+.login-scene__stage .login-card-shell {
+  margin-block: 0;
+  flex-shrink: 0;
+  max-height: 100%;
+}
+
+.login-sparkle {
+  position: absolute;
+  opacity: 0;
+  background: #fffdf6;
+  clip-path: polygon(
+    50% 0%,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 57%,
+    2% 35%,
+    39% 35%
+  );
+  filter: drop-shadow(0 0 4px rgba(255, 244, 214, 0.95));
+}
+
+.login-sparkle--gold {
+  background: #ffd36a;
+  filter: drop-shadow(0 0 5px rgba(255, 183, 54, 0.95));
+}
+
+.login-scene.is-changing .login-sparkle {
+  animation: login-sparkle 1.35s ease-in-out both;
+}
+
 .login-scene__shimmer {
   position: absolute;
   inset: 0;
+  z-index: 2;
   background: linear-gradient(
     110deg,
     transparent 38%,
@@ -48,6 +141,7 @@
 
 .login-scene__glow {
   position: absolute;
+  z-index: 2;
   border-radius: 50%;
   filter: blur(80px);
   pointer-events: none;
@@ -79,6 +173,10 @@
   width: 100%;
   max-width: 30rem;
   animation: login-card-enter 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-card-shell--wide {
+  max-width: 52rem;
 }
 
 .login-card-shell::before {
@@ -393,6 +491,115 @@
   color: #b91c1c;
 }
 
+.login-field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: rgba(92, 41, 124, 0.72);
+}
+
+.login-switch {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #5c297c;
+}
+
+.login-switch button {
+  margin-left: 0.35rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.4rem;
+  font-weight: 800;
+  color: #491464;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.login-switch button:hover {
+  color: #2e0046;
+  background: rgba(255, 183, 54, 0.35);
+  text-decoration: none;
+}
+
+.login-register-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem 1rem;
+  margin-top: 1.25rem;
+}
+
+.login-register-form__full {
+  grid-column: 1 / -1;
+}
+
+.login-card-shell--wide .login-card {
+  padding: 1rem 1.35rem 0.9rem;
+}
+
+.login-card-shell--wide .login-brand {
+  gap: 0.15rem;
+}
+
+.login-card-shell--wide .login-brand__symbol {
+  width: 3.15rem;
+  height: 3.15rem;
+}
+
+.login-card-shell--wide .login-brand__text {
+  width: min(9.5rem, 42%);
+}
+
+.login-card-shell--wide .login-welcome__title {
+  margin-top: 0.3rem;
+  font-size: 1.35rem;
+}
+
+.login-card-shell--wide .login-welcome__subtitle {
+  font-size: 0.875rem;
+}
+
+.login-card-shell--wide .login-divider {
+  margin: 0.55rem 0 0.4rem;
+}
+
+.login-card-shell--wide .login-form-intro {
+  font-size: 0.875rem;
+}
+
+.login-card-shell--wide .login-register-form {
+  gap: 0.4rem 0.85rem;
+  margin-top: 0.65rem;
+}
+
+.login-card-shell--wide .login-register-form label {
+  margin-bottom: 0.2rem;
+}
+
+.login-card-shell--wide .login-field {
+  padding: 0.45rem 0.8rem;
+}
+
+.login-card-shell--wide .login-field-hint {
+  margin-top: 0.15rem;
+}
+
+.login-card-shell--wide .login-submit {
+  margin-top: 0.1rem;
+  padding: 0.65rem 1rem;
+}
+
+.login-card-shell--wide .login-switch {
+  margin-top: 0.55rem;
+}
+
+.login-card-shell--wide .login-footer__sig {
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+}
+
 .login-field-wrap {
   position: relative;
 }
@@ -479,14 +686,52 @@
   }
 }
 
-@keyframes login-bg-drift {
+@keyframes login-gold-wash {
+  0% {
+    opacity: 0;
+  }
+  28% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes login-sparkle {
+  0% {
+    opacity: 0;
+    transform: scale(0.15) rotate(0deg);
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1) rotate(18deg);
+  }
+  38% {
+    opacity: 0.2;
+    transform: scale(0.35) rotate(36deg);
+  }
+  58% {
+    opacity: 1;
+    transform: scale(1.2) rotate(64deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.2) rotate(90deg);
+  }
+}
+
+@keyframes login-photo-zoom {
   from {
-    transform: scale(1) translate(0, 0);
-    background-position: 50% 50%;
+    transform: scale(1.2) translate3d(1.6%, 1%, 0);
+    filter: blur(12px);
   }
   to {
-    transform: scale(1.06) translate(-1%, -0.8%);
-    background-position: 54% 46%;
+    transform: scale(1.02) translate3d(-1.8%, -1.1%, 0);
+    filter: blur(4px);
   }
 }
 
@@ -534,7 +779,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-scene__bg,
+  .login-scene__photo,
+  .login-scene__slide,
+  .login-scene__wash,
+  .login-sparkle,
   .login-scene__overlay,
   .login-scene__shimmer,
   .login-scene__glow,

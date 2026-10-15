@@ -15,6 +15,7 @@ class Role extends Model
     }
 
     public const SUPER_ADMIN = 'super_admin';
+    public const PROGRAM_CHAIR = 'program_chair';
     public const FACULTY = 'faculty';
     public const STUDENT = 'student';
 }

@@ -53,7 +53,7 @@ class SuperAdminController extends Controller
 
         $activityPage = max(1, (int) $request->query('activity_page', 1));
         $recent = AuditLog::with('user:id,name')
-            ->whereHas('user.role', fn ($q) => $q->where('name', Role::SUPER_ADMIN))
+            ->whereHas('user.role', fn ($q) => $q->where('name', Role::PROGRAM_CHAIR))
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate(50, ['*'], 'activity_page', $activityPage);
@@ -378,7 +378,7 @@ class SuperAdminController extends Controller
 
     private function notifySuperAdmins(User $actor, string $type, string $title, string $body): void
     {
-        $ids = User::whereHas('role', fn ($q) => $q->where('name', Role::SUPER_ADMIN))->pluck('id')->all();
+        $ids = User::whereHas('role', fn ($q) => $q->where('name', Role::PROGRAM_CHAIR))->pluck('id')->all();
         $this->notifications->notifyUsers($ids, $type, $title, $body);
     }
 

@@ -109,6 +109,40 @@ export function validateStudentForm(form) {
   return errors
 }
 
+export function validateStudentRegistration(form) {
+  const errors = {}
+  const namePattern = /^[A-Za-z\s-]+$/
+  const emailPattern = /@student\.mcu\.edu\.ph$/i
+  const studentNumberPattern = /^[A-Za-z0-9]+$/
+  const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/
+
+  if (!form.first_name?.trim()) errors.first_name = 'First name is required.'
+  else if (!namePattern.test(form.first_name.trim())) errors.first_name = 'First name may contain letters only.'
+
+  if (!form.last_name?.trim()) errors.last_name = 'Last name is required.'
+  else if (!namePattern.test(form.last_name.trim())) errors.last_name = 'Last name may contain letters only.'
+
+  if (!form.student_number?.trim()) errors.student_number = 'Student number is required.'
+  else if (!studentNumberPattern.test(form.student_number.trim())) {
+    errors.student_number = 'Student number cannot contain special characters.'
+  }
+
+  if (!form.email?.trim()) errors.email = 'Email is required.'
+  else if (!emailPattern.test(form.email.trim())) errors.email = 'Email must end with @student.mcu.edu.ph.'
+
+  if (!form.password) errors.password = 'Password is required.'
+  else if (!passwordPattern.test(form.password)) {
+    errors.password = 'Password must include uppercase, lowercase, number, and special character.'
+  }
+
+  if (!form.password_confirmation) errors.password_confirmation = 'Confirm your password.'
+  else if (form.password_confirmation !== form.password) {
+    errors.password_confirmation = 'Password confirmation does not match.'
+  }
+
+  return errors
+}
+
 export function validateFacultyForm(form) {
   const errors = {}
   const namePattern = /^[A-Za-z\s-]+$/

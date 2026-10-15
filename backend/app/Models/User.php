@@ -67,6 +67,11 @@ class User extends Authenticatable
         return $this->role?->name === Role::SUPER_ADMIN;
     }
 
+    public function isProgramChair(): bool
+    {
+        return $this->role?->name === Role::PROGRAM_CHAIR;
+    }
+
     public function isFaculty(): bool
     {
         return $this->role?->name === Role::FACULTY;

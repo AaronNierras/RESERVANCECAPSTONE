@@ -8,21 +8,55 @@ dotenv.config()
 
 const app = express()
 const httpServer = createServer(app)
+const corsOrigin = process.env.CORS_ORIGIN || true
 const io = new Server(httpServer, {
-  cors: { origin: process.env.CORS_ORIGIN || 'http://localhost:5173', methods: ['GET', 'POST'] },
+  cors: { origin: corsOrigin, methods: ['GET', 'POST'] },
+  // Classroom labs: many concurrent sockets
+  maxHttpBufferSize: 1e6,
+  pingInterval: 25000,
+  pingTimeout: 20000,
+  perMessageDeflate: false,
+  connectTimeout: 20000,
 })
 
-const PORT = process.env.PORT || 3001
+const PORT = Number(process.env.PORT || 3001)
+const HOST = process.env.HOST || '0.0.0.0'
 const SHARED_SECRET = process.env.REALTIME_SECRET || 'reservance-dev-secret'
 
-app.use(cors())
-app.use(express.json())
+app.use(cors({ origin: corsOrigin }))
+app.use(express.json({ limit: '256kb' }))
 
 const presence = new Map()
 const attemptMonitors = new Map()
+let presenceDirty = false
+let lastPresenceBroadcast = 0
+
+function presenceList() {
+  return Array.from(presence.values())
+}
+
+function broadcastPresence(force = false) {
+  const now = Date.now()
+  if (!force && now - lastPresenceBroadcast < 1500) {
+    presenceDirty = true
+    return
+  }
+  lastPresenceBroadcast = now
+  presenceDirty = false
+  io.emit('presence:update', presenceList())
+}
+
+setInterval(() => {
+  if (presenceDirty) broadcastPresence(true)
+}, 1500)
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'reservance-realtime' })
+  res.json({
+    status: 'ok',
+    service: 'reservance-realtime',
+    connections: io.engine?.clientsCount || 0,
+    presence: presence.size,
+  })
 })
 
 app.post('/broadcast', (req, res) => {
@@ -53,17 +87,30 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   const { userId, role, name } = socket.handshake.auth
   if (userId) {
-    presence.set(String(userId), { userId, role, name, status: 'online', socketId: socket.id, lastActivity: Date.now() })
+    presence.set(String(userId), {
+      userId,
+      role,
+      name,
+      status: 'online',
+      socketId: socket.id,
+      lastActivity: Date.now(),
+    })
     socket.join(`role:${role}`)
     socket.join(`user:${userId}`)
-    io.emit('presence:update', Array.from(presence.values()))
+    broadcastPresence()
   }
 
   socket.on('presence:heartbeat', (payload) => {
     const id = String(payload?.userId || userId)
+    if (!id || id === 'undefined') return
     const existing = presence.get(id) || { userId: id, role, name }
-    presence.set(id, { ...existing, status: payload?.status || 'online', lastActivity: Date.now(), socketId: socket.id })
-    io.emit('presence:update', Array.from(presence.values()))
+    presence.set(id, {
+      ...existing,
+      status: payload?.status || 'online',
+      lastActivity: Date.now(),
+      socketId: socket.id,
+    })
+    broadcastPresence()
   })
 
   socket.on('attempt:progress', (payload) => {
@@ -73,7 +120,7 @@ io.on('connection', (socket) => {
   })
 
   socket.on('faculty:join-monitor', () => {
-    if (role === 'faculty' || role === 'super_admin') {
+    if (role === 'faculty' || role === 'program_chair') {
       socket.join('faculty-monitor')
       socket.emit('attempt:snapshot', Array.from(attemptMonitors.values()))
     }
@@ -84,12 +131,13 @@ io.on('connection', (socket) => {
       const entry = presence.get(String(userId))
       if (entry?.socketId === socket.id) {
         presence.set(String(userId), { ...entry, status: 'offline', lastActivity: Date.now() })
-        io.emit('presence:update', Array.from(presence.values()))
+        broadcastPresence()
       }
     }
   })
 })
 
-httpServer.listen(PORT, () => {
-  console.log(`RESERVANCE realtime server on :${PORT}`)
+httpServer.listen(PORT, HOST, () => {
+  console.log(`RESERVANCE realtime server on http://${HOST}:${PORT}`)
+  console.log('Classroom mode: presence broadcasts are throttled for 100+ users')
 })

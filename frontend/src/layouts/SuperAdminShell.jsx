@@ -1,22 +1,22 @@
 import PortalShell from './PortalShell'
 
 const nav = [
-  { to: '/superadmin/dashboard', label: 'Dashboard', end: true },
-  { to: '/superadmin/activities-factory', label: 'Activity Factory' },
-  { to: '/superadmin/activities', label: 'Faculty Activities' },
-  { to: '/superadmin/templates', label: 'Templates' },
-  { to: '/superadmin/analytics', label: 'Analytics' },
-  { to: '/superadmin/programs', label: 'Programs' },
-  { to: '/superadmin/students', label: 'Students' },
-  { to: '/superadmin/faculty', label: 'Faculty' },
+  { to: '/program-chair/dashboard', label: 'Dashboard', end: true },
+  { to: '/program-chair/activities-factory', label: 'Activity Factory' },
+  { to: '/program-chair/activities', label: 'Faculty Activities' },
+  { to: '/program-chair/templates', label: 'Templates' },
+  { to: '/program-chair/analytics', label: 'Analytics' },
+  { to: '/program-chair/programs', label: 'Programs' },
+  { to: '/program-chair/students', label: 'Students' },
+  { to: '/program-chair/faculty', label: 'Faculty' },
 ]
 
 export default function SuperAdminShell() {
   return (
     <PortalShell
-      title="Superadmin"
+      title="Program Chair"
       nav={nav}
-      homePath="/superadmin/dashboard"
+      homePath="/program-chair/dashboard"
       branded
     />
   )

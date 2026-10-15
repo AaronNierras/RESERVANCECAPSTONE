@@ -24,61 +24,57 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $roles = collect([
+            Role::PROGRAM_CHAIR,
             Role::SUPER_ADMIN,
             Role::FACULTY,
             Role::STUDENT,
-        ])->mapWithKeys(fn ($name) => [$name => Role::firstOrCreate(['name' => $name])]);
+        ])->mapWithKeys(fn ($name) => [$name => Role::create(['name' => $name])]);
 
-        $program = Program::firstOrCreate(
-            ['slug' => 'bsit'],
-            ['name' => 'BSIT', 'status' => 'active']
-        );
-        $section1a = Section::firstOrCreate(
-            ['program_id' => $program->id, 'name' => 'A', 'year_level' => 1, 'semester' => 1],
-            ['status' => 'active']
-        );
-        $section2a = Section::firstOrCreate(
-            ['program_id' => $program->id, 'name' => 'A', 'year_level' => 2, 'semester' => 1],
-            ['status' => 'active']
-        );
+        $program = Program::create(['slug' => 'bsit', 'name' => 'BSIT', 'status' => 'active']);
+        $section1a = Section::create(['program_id' => $program->id, 'name' => 'A', 'year_level' => 1, 'semester' => 1, 'status' => 'active']);
+        $section2a = Section::create(['program_id' => $program->id, 'name' => 'A', 'year_level' => 2, 'semester' => 1, 'status' => 'active']);
 
-        $period = AcademicPeriod::firstOrCreate(
-            [
-                'school_year_start' => 2026,
-                'school_year_end' => 2027,
-                'semester' => 1,
-            ],
-            [
-                'status' => AcademicPeriod::STATUS_ACTIVE,
-                'started_at' => now(),
-            ]
-        );
+        $period = AcademicPeriod::create([
+            'school_year_start' => 2026,
+            'school_year_end' => 2027,
+            'semester' => 1,
+            'status' => AcademicPeriod::STATUS_ACTIVE,
+            'started_at' => now(),
+        ]);
 
-        $superAdmin = User::firstOrCreate([
+        User::create([
             'name' => 'Program Chair',
+            'email' => 'programchair@reservance.local',
+            'password' => Hash::make('password'),
+            'role_id' => $roles[Role::PROGRAM_CHAIR]->id,
+            'status' => 'active',
+        ]);
+
+        User::create([
+            'name' => 'Superadmin',
             'email' => 'superadmin@reservance.local',
             'password' => Hash::make('password'),
             'role_id' => $roles[Role::SUPER_ADMIN]->id,
             'status' => 'active',
         ]);
 
-        $faculty = User::firstOrCreate([
+        $faculty = User::create([
             'name' => 'Faculty Demo',
             'email' => 'faculty@reservance.local',
             'password' => Hash::make('password'),
             'role_id' => $roles[Role::FACULTY]->id,
             'status' => 'active',
         ]);
-        FacultyProfile::firstOrCreate(['user_id' => $faculty->id, 'department' => 'IT']);
+        FacultyProfile::create(['user_id' => $faculty->id, 'department' => 'IT']);
 
-        $student = User::firstOrCreate([
+        $student = User::create([
             'name' => 'Student Demo',
             'email' => 'student@reservance.local',
             'password' => Hash::make('password'),
             'role_id' => $roles[Role::STUDENT]->id,
             'status' => 'active',
         ]);
-        $profile = StudentProfile::firstOrCreate([
+        $profile = StudentProfile::create([
             'user_id' => $student->id,
             'student_number' => '20240001',
             'first_name' => 'Student',
@@ -90,7 +86,7 @@ class DatabaseSeeder extends Seeder
             'current_academic_period_id' => $period->id,
         ]);
 
-        StudentAcademicRecord::firstOrCreate([
+        StudentAcademicRecord::create([
             'student_user_id' => $student->id,
             'academic_period_id' => $period->id,
             'program_id' => $profile->program_id,
@@ -100,7 +96,7 @@ class DatabaseSeeder extends Seeder
             'started_at' => now(),
         ]);
 
-        $activity = Activity::firstOrCreate([
+        $activity = Activity::create([
             'created_by' => $faculty->id,
             'title' => 'Intro Quiz',
             'description' => 'Sample quiz for RESERVANCE.',
@@ -113,13 +109,13 @@ class DatabaseSeeder extends Seeder
             'ends_at' => now()->addWeek(),
         ]);
 
-        ActivityAssignment::firstOrCreate([
+        ActivityAssignment::create([
             'activity_id' => $activity->id,
             'scope' => 'section',
             'section_id' => $section2a->id,
         ]);
 
-        $q1 = Question::firstOrCreate([
+        $q1 = Question::create([
             'activity_id' => $activity->id,
             'type' => 'mcq',
             'body' => 'What does RESERVANCE manage?',
@@ -133,7 +129,7 @@ class DatabaseSeeder extends Seeder
             ['C', 'Payroll', false],
             ['D', 'None', false],
         ] as [$label, $text, $correct]) {
-            QuestionChoice::firstOrCreate([
+            QuestionChoice::create([
                 'question_id' => $q1->id,
                 'label' => $label,
                 'text' => $text,
@@ -141,7 +137,7 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-        Question::firstOrCreate([
+        Question::create([
             'activity_id' => $activity->id,
             'type' => 'identification',
             'body' => 'Policy: one ___ per activity.',
@@ -154,7 +150,7 @@ class DatabaseSeeder extends Seeder
         $simConfig = \App\Services\SimulationEngine::defaultSimulationConfig();
         $simConfig['scenario']['briefing'] = 'Maria Santos needs a Deluxe room (202) for 2 nights at rack rate. Book, check in, then check out with cash payment of ₱7,000.';
 
-        $simulation = Activity::firstOrCreate([
+        $simulation = Activity::create([
             'created_by' => $faculty->id,
             'title' => 'Front Desk — Full Guest Cycle',
             'description' => 'Hotel reservation simulation: book, check-in, and check-out.',
@@ -168,7 +164,7 @@ class DatabaseSeeder extends Seeder
             'simulation_config' => $simConfig,
         ]);
 
-        ActivityAssignment::firstOrCreate([
+        ActivityAssignment::create([
             'activity_id' => $simulation->id,
             'scope' => 'section',
             'section_id' => $section2a->id,
@@ -181,7 +177,7 @@ class DatabaseSeeder extends Seeder
             ['consistent_performer', 'Consistent Performer'],
             ['top_ranker', 'Top Ranker'],
         ] as [$slug, $name]) {
-            AchievementBadge::firstOrCreate([
+            AchievementBadge::create([
                 'slug' => $slug,
                 'name' => $name,
                 'description' => $name,
@@ -190,7 +186,7 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-        Tutorial::firstOrCreate([
+        Tutorial::create([
             'role' => 'student',
             'category' => 'manual',
             'title' => 'How to take an activity',

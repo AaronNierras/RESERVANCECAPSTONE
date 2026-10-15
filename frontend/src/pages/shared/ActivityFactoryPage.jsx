@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import client, { getStoredUser } from '../../api/client'
 import { useActivityFactoryGuard, useGuardedNavigation } from '../../context/ActivityFactoryGuardContext'
 import { formatBytes } from '../../utils/questionImage'
+import { normalizeDocumentFile } from '../../utils/documentImport'
+import { getApiBase } from '../../config'
 import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 import ActivityManagerPanel from '../../components/activity-factory/ActivityManagerPanel'
 import QuestionCard from '../../components/activity-factory/QuestionCard'
@@ -72,7 +74,7 @@ export default function ActivityFactoryPage() {
     client.get('/activities').then((res) => setActivities(res.data.activities || []))
     client.get('/programs').catch(() => ({ data: { programs: [] } })).then((res) => setPrograms(res.data.programs || []))
     const user = getStoredUser()
-    const studentsUrl = user?.role === 'super_admin' ? '/super-admin/students' : '/faculty/students'
+    const studentsUrl = user?.role === 'program_chair' ? '/super-admin/students' : '/faculty/students'
     client.get(studentsUrl).catch(() => ({ data: { students: [] } })).then((res) => setStudents(res.data.students || []))
   }, [])
 
@@ -286,7 +288,7 @@ export default function ActivityFactoryPage() {
       const body = new FormData()
       body.append('image', file)
       const res = await client.post('/activities/question-image', body)
-      const apiBase = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').replace(/\/api\/?$/, '')
+      const apiBase = getApiBase()
       const payload = {
         ...res.data,
         url: res.data.url?.startsWith('http') ? res.data.url : `${apiBase}/storage/${res.data.path}`,
@@ -334,16 +336,18 @@ export default function ActivityFactoryPage() {
   }
 
   const onImportFile = async (event) => {
-    const file = event.target.files?.[0]
+    const picked = event.target.files?.[0]
     event.target.value = ''
-    if (!file) return
+    if (!picked) return
     const count = Math.max(1, Math.min(100, Number(setup.questionCount) || 1))
     setImportBusy(true)
     setImportError('')
     setImportNotice('')
     try {
+      // Brave/Windows often send Word/PDF without a clear type. Normalize first.
+      const file = await normalizeDocumentFile(picked)
       const body = new FormData()
-      body.append('file', file)
+      body.append('file', file, file.name)
       body.append('type', setup.type === 'combination' ? 'activity' : setup.type)
       body.append('title', setup.title.trim())
       body.append('question_count', String(count))
@@ -371,7 +375,7 @@ export default function ActivityFactoryPage() {
     } catch (error) {
       const errors = error?.response?.data?.errors
       const first = errors ? Object.values(errors).flat()[0] : ''
-      setImportError(first || error?.response?.data?.message || 'The file could not be read.')
+      setImportError(first || error?.message || error?.response?.data?.message || 'The file could not be read.')
       setStep('setup')
     } finally {
       setImportBusy(false)
@@ -542,7 +546,7 @@ export default function ActivityFactoryPage() {
                     ? 'A combination includes written questions and the hotel simulation. Use Generate from file to build the questions from a Word or PDF file.'
                     : isSimulation
                       ? 'Provide the basics, then start the hotel workspace.'
-                      : 'Provide the basics, then start the question workspace. Or use Generate from file to build questions from a Word or PDF file.'}
+                      : 'Provide the basics, then start the question workspace. Or use Generate from file. Word (.docx) and PDF are accepted — Brave is supported; the system detects the real file type automatically.'}
                 </p>
                 {importError && <p className="af-error">{importError}</p>}
               </>

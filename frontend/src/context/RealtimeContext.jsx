@@ -28,7 +28,7 @@ export function RealtimeProvider({ children }) {
     socket.on('notifications:update', bumpNotifications)
     socket.on('attempt:update', bumpMonitor)
 
-    if (user.role === 'faculty' || user.role === 'super_admin') {
+    if (user.role === 'faculty' || user.role === 'program_chair') {
       socket.emit('faculty:join-monitor')
     }
 

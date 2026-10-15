@@ -1,19 +1,25 @@
 import axios from 'axios'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+import { getRuntimeConfig } from '../config'
 
 const client = axios.create({
-  baseURL: API_URL,
+  baseURL: getRuntimeConfig().apiUrl,
   headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
 })
 
 client.interceptors.request.use((config) => {
+  config.baseURL = getRuntimeConfig().apiUrl
   const token = localStorage.getItem('reservance_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  // Brave + Axios: default JSON Content-Type breaks file uploads. Let the browser set multipart boundary.
   if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
-    config.headers.delete('Content-Type')
+    if (config.headers && typeof config.headers.delete === 'function') {
+      config.headers.delete('Content-Type')
+    } else if (config.headers) {
+      delete config.headers['Content-Type']
+      delete config.headers['content-type']
+    }
   }
   return config
 })

@@ -1,11 +1,28 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import client, { clearAuth, getStoredUser, setAuth } from '../api/client'
+import { getRuntimeConfig } from '../config'
 import LoadingScreen from '../components/LoadingScreen'
 
 const AuthContext = createContext(null)
 const IDLE_MS = 10 * 60 * 1000
 const HEARTBEAT_MS = 30000
 const PRESENCE_ROLES = new Set(['student', 'faculty'])
+
+function markOfflineOnUnload(token) {
+  if (!token) return
+  // Do not call /logout here — refresh would sign the user out.
+  // Offline presence lets the next login clear leftover tokens server-side.
+  fetch(`${getRuntimeConfig().apiUrl}/presence/heartbeat`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status: 'offline' }),
+    keepalive: true,
+  }).catch(() => {})
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(getStoredUser())
@@ -49,7 +66,6 @@ export function AuthProvider({ children }) {
 
     const handleIdleTimeout = async () => {
       try {
-        await client.post('/presence/heartbeat', { status: 'offline' })
         await client.post('/logout')
       } catch {
         // Session may already be invalid.
@@ -82,10 +98,20 @@ export function AuthProvider({ children }) {
     return res.data.user
   }
 
+  const register = async (payload) => {
+    const res = await client.post('/register', payload)
+    setAuth(res.data.token, res.data.user)
+    setUser(res.data.user)
+    return res.data.user
+  }
+
   const logout = async () => {
     try {
-      await client.post('/presence/heartbeat', { status: 'offline' })
+      // Logout alone marks presence offline and deletes Sanctum tokens.
+      // Do not heartbeat first — that would refresh last_used_at if logout then fails.
       await client.post('/logout')
+    } catch {
+      // Still clear local auth so the UI can leave; server tokens are swept if offline/stale.
     } finally {
       clearAuth()
       setUser(null)
@@ -98,23 +124,19 @@ export function AuthProvider({ children }) {
     const handleUnload = () => {
       const token = localStorage.getItem('reservance_token')
       if (!token) return
-      fetch(`${import.meta.env.VITE_API_URL}/presence/heartbeat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: 'offline' }),
-        keepalive: true,
-      }).catch(() => {})
+      markOfflineOnUnload(token)
     }
 
+    window.addEventListener('pagehide', handleUnload)
     window.addEventListener('beforeunload', handleUnload)
-    return () => window.removeEventListener('beforeunload', handleUnload)
+    return () => {
+      window.removeEventListener('pagehide', handleUnload)
+      window.removeEventListener('beforeunload', handleUnload)
+    }
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   )

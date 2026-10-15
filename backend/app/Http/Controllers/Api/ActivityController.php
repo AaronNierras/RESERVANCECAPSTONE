@@ -42,7 +42,7 @@ class ActivityController extends Controller
     {
         $query = Activity::with(['assignments', 'questions.choices'])->latest();
 
-        if ($request->user()->isFaculty() || $request->user()->isSuperAdmin()) {
+        if ($request->user()->isFaculty() || $request->user()->isProgramChair()) {
             $query->where('created_by', $request->user()->id);
         }
 
@@ -66,13 +66,6 @@ class ActivityController extends Controller
             'title' => 'required|string|max:255',
             'question_count' => 'required|integer|min:1|max:100',
         ]);
-
-        $extension = strtolower($request->file('file')->getClientOriginalExtension());
-        if (! in_array($extension, ['docx', 'pdf'], true)) {
-            throw ValidationException::withMessages([
-                'file' => ['Upload a Word (.docx) or PDF file. Older .doc files need to be saved as .docx first.'],
-            ]);
-        }
 
         try {
             $text = $this->documents->extract($request->file('file'));
@@ -179,8 +172,8 @@ class ActivityController extends Controller
         $activity->update(['status' => 'published']);
         $this->audit->log($request->user(), 'publish_activity', 'activity_factory', $request);
 
-        $superIds = User::whereHas('role', fn ($q) => $q->where('name', Role::SUPER_ADMIN))->pluck('id')->all();
-        $this->notifications->notifyUsers($superIds, 'activity_published', 'Activity published', $activity->title);
+        $programChairIds = User::whereHas('role', fn ($q) => $q->where('name', Role::PROGRAM_CHAIR))->pluck('id')->all();
+        $this->notifications->notifyUsers($programChairIds, 'activity_published', 'Activity published', $activity->title);
         $this->realtime->refresh('activities');
         $this->realtime->refresh('dashboard');
 
@@ -392,7 +385,7 @@ class ActivityController extends Controller
 
     private function authorizeActivityView(Request $request, Activity $activity): void
     {
-        if ($request->user()->isSuperAdmin()) {
+        if ($request->user()->isProgramChair()) {
             return;
         }
         if ($request->user()->isFaculty() && $activity->created_by === $request->user()->id) {

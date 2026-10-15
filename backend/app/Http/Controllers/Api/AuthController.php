@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
+use App\Http\Requests\RegisterStudentRequest;
 use App\Models\Role;
+use App\Models\StudentProfile;
+use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\NotificationService;
 use App\Services\PresenceService;
 use App\Services\RealtimeService;
 use Illuminate\Http\Request;
@@ -18,6 +21,7 @@ class AuthController extends Controller
         private AuditLogService $audit,
         private PresenceService $presence,
         private RealtimeService $realtime,
+        private NotificationService $notifications,
     ) {}
 
     public function login(Request $request)
@@ -58,6 +62,56 @@ class AuthController extends Controller
             'token' => $token,
             'user' => $this->userPayload($user),
         ]);
+    }
+
+    public function register(RegisterStudentRequest $request)
+    {
+        $data = $request->validated();
+        $roleId = Role::where('name', Role::STUDENT)->value('id');
+
+        if (! $roleId) {
+            throw ValidationException::withMessages([
+                'email' => ['Student registration is not available right now.'],
+            ]);
+        }
+
+        $user = User::create([
+            'name' => $request->fullName(),
+            'email' => $data['email'],
+            'password' => Hash::make($data['password']),
+            'role_id' => $roleId,
+            'status' => 'active',
+        ]);
+
+        StudentProfile::create([
+            'user_id' => $user->id,
+            'student_number' => $data['student_number'],
+            'first_name' => $data['first_name'],
+            'last_name' => $data['last_name'],
+            'academic_status' => StudentProfile::ACADEMIC_ACTIVE,
+        ]);
+
+        $user->load([
+            'role',
+            'studentProfile.program',
+            'studentProfile.section',
+            'studentProfile.currentAcademicPeriod',
+        ]);
+
+        $chairIds = User::whereHas('role', fn ($q) => $q->where('name', Role::PROGRAM_CHAIR))->pluck('id')->all();
+        $this->notifications->notifyUsers($chairIds, 'new_student', 'New student registered', $user->name);
+        $this->audit->log($user, 'register_student', 'student_registry', $request);
+        $this->realtime->refresh('students');
+        $this->realtime->refresh('dashboard');
+
+        $user->update(['last_login_at' => now()]);
+        $token = $user->createToken('api')->plainTextToken;
+        $this->presence->heartbeat($user, $request, 'online');
+
+        return response()->json([
+            'token' => $token,
+            'user' => $this->userPayload($user),
+        ], 201);
     }
 
     public function logout(Request $request)
