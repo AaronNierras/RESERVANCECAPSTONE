@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Api\AcademicPeriodController;
 use App\Http\Requests\StoreFacultyRequest;
 use App\Http\Requests\StoreStudentRequest;
 use App\Models\Activity;
@@ -13,18 +12,17 @@ use App\Models\Program;
 use App\Models\Role;
 use App\Models\Score;
 use App\Models\Section;
-use App\Models\StudentAttempt;
 use App\Models\StudentProfile;
 use App\Models\User;
-use App\Services\ActivityCopyService;
 use App\Services\AcademicPeriodService;
+use App\Services\ActivityCopyService;
 use App\Services\AuditLogService;
 use App\Services\NotificationService;
 use App\Services\PresenceService;
 use App\Services\RealtimeService;
+use App\Services\StudentPlacementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class SuperAdminController extends Controller
@@ -36,6 +34,7 @@ class SuperAdminController extends Controller
         private RealtimeService $realtime,
         private AcademicPeriodService $academicPeriods,
         private ActivityCopyService $activityCopy,
+        private StudentPlacementService $placement,
     ) {}
 
     public function dashboard(Request $request)
@@ -176,18 +175,33 @@ class SuperAdminController extends Controller
             unset($data['password']);
         }
 
-        if (isset($data['program_id'], $data['section_id'])) {
-            AcademicPeriodController::validateSectionBelongsToProgram(
-                (int) $data['program_id'],
-                (int) $data['section_id'],
-            );
+        if (isset($data['section_id'])) {
+            $section = Section::query()->findOrFail($data['section_id']);
+            $period = $this->academicPeriods->current();
+            if (! $period) {
+                throw ValidationException::withMessages([
+                    'section_id' => ['An active academic period is required before assigning a section.'],
+                ]);
+            }
+            $this->placement->place($user, $section, $period);
+            unset($data['program_id'], $data['section_id']);
+        }
+
+        if (($data['status'] ?? null) === 'active' && ! $user->studentProfile?->fresh()?->section_id) {
+            throw ValidationException::withMessages([
+                'status' => ['Assign a section before this student can sign in.'],
+            ]);
         }
 
         $user->update(collect($data)->only(['name', 'email', 'status', 'password'])->filter()->all());
 
+        if (($data['status'] ?? null) === 'inactive') {
+            $user->tokens()->delete();
+        }
+
         if ($user->studentProfile) {
             $profileData = collect($data)->only([
-                'student_number', 'program_id', 'section_id', 'year_level',
+                'student_number',
             ])->filter()->all();
 
             if (isset($data['first_name'], $data['last_name'])) {
@@ -262,6 +276,9 @@ class SuperAdminController extends Controller
         }
 
         $user->update(collect($data)->only(['name', 'email', 'status', 'password'])->filter()->all());
+        if (($data['status'] ?? null) === 'inactive') {
+            $user->tokens()->delete();
+        }
         $user->facultyProfile?->update(['department' => $data['department'] ?? $user->facultyProfile->department]);
 
         $this->audit->log($request->user(), 'update_faculty', 'faculty_registry', $request);
@@ -273,40 +290,47 @@ class SuperAdminController extends Controller
 
     public function programs()
     {
-        return response()->json(['programs' => Program::with('sections')->orderBy('name')->get()]);
-    }
+        $this->ensureOfficialPrograms();
 
-    public function storeProgram(Request $request)
-    {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:32', 'regex:/^[A-Za-z]+$/'],
-            'slug' => 'nullable|string|max:255|unique:programs,slug',
-        ], [
-            'name.regex' => 'Program name must contain letters only.',
+        return response()->json([
+            'programs' => Program::with('sections')
+                ->whereIn('slug', ['bshm', 'bstm'])
+                ->orderBy('name')
+                ->get(),
         ]);
-
-        $program = Program::create([
-            'name' => strtoupper($data['name']),
-            'slug' => $data['slug'] ?? Str::slug(strtoupper($data['name'])),
-        ]);
-
-        $this->realtime->refresh('programs');
-
-        return response()->json(['program' => $program], 201);
     }
 
     public function storeSection(Request $request)
     {
         $data = $request->validate([
             'program_id' => 'required|exists:programs,id',
-            'name' => ['required', 'string', 'max:8', 'regex:/^[A-Za-z]+$/'],
+            'name' => ['required', 'string', 'max:3', 'regex:/^[1-9][0-9]*$/'],
             'year_level' => 'required|integer|in:1,2,3,4',
             'semester' => 'required|integer|in:1,2,3',
         ], [
-            'name.regex' => 'Section name must contain letters only (example: A, B).',
+            'name.regex' => 'Section number must be a number such as 1 or 2.',
         ]);
 
-        $data['name'] = strtoupper($data['name']);
+        $program = Program::query()->findOrFail($data['program_id']);
+
+        if (! in_array($program->slug, ['bshm', 'bstm'], true)) {
+            throw ValidationException::withMessages([
+                'program_id' => ['Choose BS Hospitality Management or BS Tourism Management.'],
+            ]);
+        }
+
+        $alreadyExists = Section::query()
+            ->where('program_id', $program->id)
+            ->where('year_level', $data['year_level'])
+            ->where('semester', $data['semester'])
+            ->where('name', $data['name'])
+            ->exists();
+
+        if ($alreadyExists) {
+            throw ValidationException::withMessages([
+                'name' => ['That section already exists for this program, year, and semester.'],
+            ]);
+        }
 
         $section = Section::create([
             ...$data,
@@ -318,9 +342,17 @@ class SuperAdminController extends Controller
         return response()->json(['section' => $section->load('program')], 201);
     }
 
+    public function storeProgram(Request $request)
+    {
+        throw ValidationException::withMessages([
+            'name' => ['BS Hospitality Management and BS Tourism Management are already available. Add a section instead.'],
+        ]);
+    }
+
     public function facultyActivities()
     {
         $activities = Activity::with(['creator', 'assignments', 'attempts'])
+            ->visibleInFactory()
             ->whereHas('creator.role', fn ($q) => $q->where('name', Role::FACULTY))
             ->latest()
             ->get()
@@ -397,14 +429,14 @@ class SuperAdminController extends Controller
                 'student_number' => $profile->student_number,
                 'first_name' => $profile->first_name,
                 'last_name' => $profile->last_name,
-                'program' => $profile->program?->only(['id', 'name']),
+                'program' => $profile->program?->only(['id', 'name', 'code']),
                 'section' => $profile->section ? [
                     'id' => $profile->section->id,
                     'name' => $profile->section->name,
                     'year_level' => $profile->section->year_level ? (int) $profile->section->year_level : null,
                     'semester' => $profile->section->semester ? (int) $profile->section->semester : null,
                     'semester_label' => $profile->section->semesterLabel(),
-                    'display_label' => $profile->section->displayLabel($profile->program?->name),
+                    'display_label' => $profile->section->displayLabel($profile->program?->sectionCode()),
                 ] : null,
                 'year_level' => $profile->year_level ? (int) $profile->year_level : null,
                 'year_level_label' => $profile->yearLevelLabel(),
@@ -412,5 +444,36 @@ class SuperAdminController extends Controller
                 'current_period' => $profile->currentAcademicPeriod?->toSummary(),
             ] : null,
         ];
+    }
+
+    private function ensureOfficialPrograms(): void
+    {
+        foreach ([
+            ['slug' => 'bshm', 'name' => 'BS Hospitality Management'],
+            ['slug' => 'bstm', 'name' => 'BS Tourism Management'],
+        ] as $official) {
+            Program::query()->updateOrCreate(
+                ['slug' => $official['slug']],
+                ['name' => $official['name'], 'status' => 'active'],
+            );
+        }
+
+        Section::query()
+            ->whereHas('program', fn ($query) => $query->whereIn('slug', ['bshm', 'bstm']))
+            ->where('name', 'A')
+            ->get()
+            ->each(function (Section $section) {
+                $taken = Section::query()
+                    ->where('program_id', $section->program_id)
+                    ->where('year_level', $section->year_level)
+                    ->where('semester', $section->semester)
+                    ->where('name', '1')
+                    ->whereKeyNot($section->id)
+                    ->exists();
+
+                if (! $taken) {
+                    $section->update(['name' => '1']);
+                }
+            });
     }
 }

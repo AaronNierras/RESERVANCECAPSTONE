@@ -6,11 +6,15 @@ use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BadgeController;
 use App\Http\Controllers\Api\FacultyStudentController;
+use App\Http\Controllers\Api\LabAssessmentController;
 use App\Http\Controllers\Api\LeaderboardController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\OversightController;
+use App\Http\Controllers\Api\PlatformAdminController;
 use App\Http\Controllers\Api\PresenceController;
 use App\Http\Controllers\Api\StudentActivityController;
 use App\Http\Controllers\Api\SuperAdminController;
+use App\Http\Controllers\Api\SystemErrorController;
 use App\Http\Controllers\Api\TutorialController;
 use App\Http\Middleware\EnsureRole;
 use Illuminate\Support\Facades\Route;
@@ -27,6 +31,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tutorials', [TutorialController::class, 'index']);
     Route::get('/leaderboards', [LeaderboardController::class, 'index']);
     Route::get('/badges', [BadgeController::class, 'index']);
+
+    Route::post('/system-errors', [SystemErrorController::class, 'store']);
+
+    Route::middleware(EnsureRole::class.':super_admin')->prefix('platform')->group(function () {
+        Route::get('/dashboard', [PlatformAdminController::class, 'dashboard']);
+        Route::get('/students', [PlatformAdminController::class, 'students']);
+        Route::patch('/students/{user}', [PlatformAdminController::class, 'updateStudent']);
+        Route::get('/faculty', [PlatformAdminController::class, 'faculty']);
+        Route::patch('/faculty/{user}', [PlatformAdminController::class, 'updateFaculty']);
+        Route::get('/history', [OversightController::class, 'history']);
+        Route::get('/errors', [PlatformAdminController::class, 'errors']);
+        Route::patch('/errors/{systemError}', [PlatformAdminController::class, 'updateError']);
+    });
 
     Route::middleware(EnsureRole::class.':program_chair')->prefix('super-admin')->group(function () {
         Route::get('/dashboard', [SuperAdminController::class, 'dashboard']);
@@ -47,10 +64,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/faculty-activities/{activity}/copy', [SuperAdminController::class, 'copyFacultyActivity']);
         Route::get('/analytics', [AnalyticsController::class, 'superAdmin']);
         Route::get('/analytics/students/{user}', [AnalyticsController::class, 'studentPerformance']);
+        Route::get('/registrations', [OversightController::class, 'registrations']);
+        Route::post('/registrations/{user}/accept', [OversightController::class, 'acceptRegistration']);
+        Route::get('/history', [OversightController::class, 'history']);
+        Route::get('/achievements', [OversightController::class, 'achievements']);
     });
 
     Route::middleware(EnsureRole::class.':faculty,program_chair')->group(function () {
         Route::get('/programs', [SuperAdminController::class, 'programs']);
+    });
+
+    Route::middleware(EnsureRole::class.':faculty,program_chair,student')->group(function () {
+        Route::get('/lab-rubric', [LabAssessmentController::class, 'show']);
+    });
+
+    Route::middleware(EnsureRole::class.':faculty,program_chair')->group(function () {
+        Route::put('/lab-rubric/students/{user}', [LabAssessmentController::class, 'update']);
     });
 
     Route::middleware(EnsureRole::class.':faculty,program_chair')->prefix('faculty')->group(function () {
@@ -58,6 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/analytics', [AnalyticsController::class, 'faculty']);
         Route::get('/analytics/students/{user}', [AnalyticsController::class, 'studentPerformance']);
         Route::get('/monitor', [PresenceController::class, 'monitor']);
+        Route::get('/achievements', [OversightController::class, 'achievements']);
     });
 
     Route::middleware(EnsureRole::class.':faculty,program_chair')->group(function () {
@@ -69,11 +99,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/activities/{activity}/publish', [ActivityController::class, 'publish']);
         Route::post('/activities/{activity}/open', [ActivityController::class, 'open']);
         Route::post('/activities/{activity}/close', [ActivityController::class, 'close']);
+        Route::get('/activities/{activity}/outputs', [ActivityController::class, 'outputs']);
+        Route::put('/activities/{activity}/attempts/{attempt}/lab-rubric', [ActivityController::class, 'gradeOutput']);
         Route::post('/activities/{activity}/duplicate', [ActivityController::class, 'duplicate']);
         Route::post('/activities/{activity}/archive', [ActivityController::class, 'archive']);
         Route::delete('/activities/{activity}', [ActivityController::class, 'destroy']);
         Route::post('/activities/question-image', [ActivityController::class, 'uploadQuestionImage']);
         Route::post('/activities/{activity}/template', [ActivityController::class, 'saveTemplate']);
+        Route::post('/templates/{template}/use', [ActivityController::class, 'useTemplate']);
         Route::get('/templates', [ActivityController::class, 'templates']);
     });
 

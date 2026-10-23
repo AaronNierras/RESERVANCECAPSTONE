@@ -56,6 +56,7 @@ export default function LoginPage() {
   })
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
   const [logoutPrompt, setLogoutPrompt] = useState(false)
   const [logoutBusy, setLogoutBusy] = useState(false)
@@ -77,6 +78,7 @@ export default function LoginPage() {
     })
     setFieldErrors({})
     setError('')
+    setNotice('')
     setFormKey((value) => value + 1)
   }
 
@@ -153,7 +155,7 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await register({
+      const result = await register({
         first_name: registerForm.first_name,
         last_name: registerForm.last_name,
         student_number: registerForm.student_number,
@@ -161,7 +163,13 @@ export default function LoginPage() {
         password: registerForm.password,
         password_confirmation: registerForm.password_confirmation,
       })
-      navigate('/student')
+      if (result?.token) {
+        navigate('/student')
+        return
+      }
+      clearLoginFields()
+      setMode('login')
+      setNotice(result?.message || 'Registration received. You can sign in after the Program Chair accepts your account.')
     } catch (err) {
       const apiErrors = err.response?.data?.errors
       if (apiErrors) {
@@ -312,6 +320,11 @@ export default function LoginPage() {
                   <EyeIcon open={showPassword} />
                 </button>
               </div>
+              {notice && (
+                <p className="login-field-error" role="status" style={{ color: '#491464' }}>
+                  {notice}
+                </p>
+              )}
               {error && (
                 <p id="login-error" className="login-field-error" role="alert" aria-live="polite">
                   {error}

@@ -45,7 +45,9 @@ function ActivityCard({ activity, programs, actions, showSchedule }) {
       <header className="af-card__head">
         <h3 className="af-card__title">{activity.title || 'Untitled draft'}</h3>
         <span className={`af-badge af-badge--${tone}`}>
-          {STATUS_META[activity.status]?.label || activity.status}
+          {activity.status === 'published' && activity.open_mode === 'automatic'
+            ? 'Scheduled'
+            : (STATUS_META[activity.status]?.label || activity.status)}
         </span>
       </header>
       <dl className="af-card__facts">
@@ -157,6 +159,8 @@ export default function ActivityManagerPanel({
   onOpen,
   onClose,
   onDelete,
+  onShare,
+  onGrade,
 }) {
   const [query, setQuery] = useState('')
   const [listView, setListView] = useState('open')
@@ -184,7 +188,7 @@ export default function ActivityManagerPanel({
     },
     ready: {
       title: 'Ready to open',
-      hint: 'Published, but not opened for students yet.',
+      hint: 'Published. Manual assessments wait here until you open them. Automatic assessments open at the start time.',
       items: ready,
       emptyText: searching ? noMatch : 'No assessments are waiting to be opened.',
     },
@@ -203,14 +207,21 @@ export default function ActivityManagerPanel({
         <>
           <button type="button" className="af-btn af-btn--gold" onClick={() => onEditDraft(activity)}>Edit draft</button>
           <button type="button" className="af-btn af-btn--purple" onClick={() => onPublish(activity.id)}>Publish</button>
+          {onShare && <button type="button" className="af-btn af-btn--ghost" onClick={() => onShare(activity)}>Share with faculty</button>}
           <button type="button" className="af-btn af-btn--danger" onClick={() => onDelete(activity.id)}>Delete</button>
         </>
       )}
-      {activity.status === 'published' && (
+      {activity.status === 'published' && activity.open_mode !== 'automatic' && (
         <>
           <button type="button" className="af-btn af-btn--gold" onClick={() => onOpen(activity.id)}>Open for students</button>
           <button type="button" className="af-btn af-btn--ghost" onClick={() => onClose(activity.id)}>Close</button>
         </>
+      )}
+      {activity.status === 'published' && activity.open_mode === 'automatic' && (
+        <span className="af-card__meta">Opens automatically at the start time.</span>
+      )}
+      {(activity.status === 'active' || activity.status === 'closed') && (activity.type === 'simulation' || activity.type === 'combination') && onGrade && (
+        <button type="button" className="af-btn af-btn--purple" onClick={() => onGrade(activity)}>Grade with rubric</button>
       )}
       {activity.status === 'active' && (
         <button type="button" className="af-btn af-btn--danger" onClick={() => onClose(activity.id)}>Close activity</button>

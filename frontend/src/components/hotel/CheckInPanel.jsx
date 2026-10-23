@@ -48,7 +48,7 @@ export default function CheckInPanel({ hotel, onCheckIn, loading }) {
                   />
                   <span className="hotel-pick-list__body">
                     <strong>{r.guest_first_name} {r.guest_last_name}</strong>
-                    <span>Room {r.room_number} · {r.nights} night{r.nights === 1 ? '' : 's'} · {formatPeso(r.total)}</span>
+                    <span>Room {r.room_number} · {r.nights} night{r.nights === 1 ? '' : 's'}{hotel?.manual_computation ? '' : ` · ${formatPeso(r.total)}`}</span>
                   </span>
                 </label>
               ))}

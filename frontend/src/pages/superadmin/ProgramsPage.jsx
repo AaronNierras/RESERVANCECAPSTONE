@@ -8,10 +8,8 @@ import {
   SECTION_SEMESTERS,
   YEAR_LEVELS,
   formatSectionLabel,
-  sanitizeProgramName,
   sanitizeSectionName,
   sectionSemesterLabel,
-  validateProgramForm,
   validateSectionForm,
   yearLevelLabel,
 } from '../../utils/academic'
@@ -29,16 +27,11 @@ export default function ProgramsPage() {
   const [programs, setPrograms] = useState([])
   const [academic, setAcademic] = useState({ current: null, periods: [] })
   const [nextPreview, setNextPreview] = useState(null)
-  const [programForm, setProgramForm] = useState({ name: '' })
   const [sectionForm, setSectionForm] = useState({ program_id: '', name: '', year_level: '', semester: '' })
-  const [programErrors, setProgramErrors] = useState({})
   const [sectionErrors, setSectionErrors] = useState({})
-  const [programModalOpen, setProgramModalOpen] = useState(false)
   const [semesterModalOpen, setSemesterModalOpen] = useState(false)
   const [progressionMode, setProgressionMode] = useState('none')
-  const [submittingProgram, setSubmittingProgram] = useState(false)
   const [submittingSemester, setSubmittingSemester] = useState(false)
-  const [programError, setProgramError] = useState('')
   const [semesterError, setSemesterError] = useState('')
   const [sectionsModalOpen, setSectionsModalOpen] = useState(false)
   const [sectionSearch, setSectionSearch] = useState('')
@@ -50,11 +43,13 @@ export default function ProgramsPage() {
   const [loadingSectionStudents, setLoadingSectionStudents] = useState(false)
   const [sectionStudentSort, setSectionStudentSort] = useState('name')
 
-  const programConfirm = useConfirmCountdown(programModalOpen)
   const semesterConfirm = useConfirmCountdown(semesterModalOpen)
 
   const load = () => {
-    client.get('/super-admin/programs').then((res) => setPrograms(res.data.programs))
+    client.get('/super-admin/programs').then((res) => {
+      const official = (res.data.programs || []).filter((program) => ['bshm', 'bstm'].includes(String(program.slug).toLowerCase()))
+      setPrograms(official)
+    })
     client.get('/super-admin/academic-periods').then((res) => setAcademic(res.data))
     client.get('/super-admin/academic-periods/current').then((res) => setNextPreview(res.data.next))
   }
@@ -64,48 +59,31 @@ export default function ProgramsPage() {
   const current = academic.current
   const selectedProgression = PROGRESSION_OPTIONS.find((option) => option.value === progressionMode)
 
-  const openProgramConfirm = (e) => {
-    e.preventDefault()
-    const validation = validateProgramForm(programForm)
-    setProgramErrors(validation)
-    if (Object.keys(validation).length) return
-    setProgramError('')
-    setProgramModalOpen(true)
-  }
-
-  const confirmAddProgram = async () => {
-    if (!programConfirm.ready) return
-
-    setSubmittingProgram(true)
-    setProgramError('')
-    try {
-      await client.post('/super-admin/programs', { name: sanitizeProgramName(programForm.name) })
-      setProgramForm({ name: '' })
-      setProgramErrors({})
-      setProgramModalOpen(false)
-      load()
-    } catch (err) {
-      setProgramError(err.response?.data?.message || err.response?.data?.errors?.name?.[0] || 'Unable to add program.')
-    } finally {
-      setSubmittingProgram(false)
-    }
-  }
-
   const submitSection = async (e) => {
     e.preventDefault()
     const validation = validateSectionForm(sectionForm)
     setSectionErrors(validation)
     if (Object.keys(validation).length) return
 
-    await client.post('/super-admin/sections', {
-      ...sectionForm,
-      name: sanitizeSectionName(sectionForm.name),
-      year_level: Number(sectionForm.year_level),
-      semester: Number(sectionForm.semester),
-    })
-    setSectionForm({ program_id: '', name: '', year_level: '', semester: '' })
-    setSectionErrors({})
-    load()
+    try {
+      await client.post('/super-admin/sections', {
+        ...sectionForm,
+        name: sanitizeSectionName(sectionForm.name),
+        year_level: Number(sectionForm.year_level),
+        semester: Number(sectionForm.semester),
+      })
+      setSectionForm({ program_id: '', name: '', year_level: '', semester: '' })
+      setSectionErrors({})
+      load()
+    } catch (err) {
+      const apiErrors = err.response?.data?.errors || {}
+      setSectionErrors({
+        program_id: apiErrors.program_id?.[0] || '',
+        name: apiErrors.name?.[0] || err.response?.data?.message || 'Unable to add section.',
+        year_level: apiErrors.year_level?.[0] || '',
+        semester: apiErrors.semester?.[0] || '',
+      })
+    }
   }
 
   const completeSemester = async () => {
@@ -127,16 +105,15 @@ export default function ProgramsPage() {
 
   const selectedProgram = programs.find((p) => String(p.id) === String(sectionForm.program_id))
   const previewSectionLabel = selectedProgram && sectionForm.name && sectionForm.year_level && sectionForm.semester
-    ? formatSectionLabel(selectedProgram.name, sectionForm.year_level, sanitizeSectionName(sectionForm.name), sectionForm.semester)
+    ? formatSectionLabel(selectedProgram.code || selectedProgram.name, sectionForm.year_level, sanitizeSectionName(sectionForm.name), sectionForm.semester)
     : null
-  const programPreviewName = sanitizeProgramName(programForm.name)
 
   const allSections = useMemo(
     () => programs.flatMap((program) => (program.sections || []).map((section) => ({
       ...section,
       program_id: program.id,
       program_name: program.name,
-      display_label: formatSectionLabel(program.name, section.year_level, section.name, section.semester),
+      display_label: formatSectionLabel(program.code || program.name, section.year_level, section.name, section.semester),
     }))),
     [programs],
   )
@@ -286,28 +263,10 @@ export default function ProgramsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Programs & Sections" description="Manage programs and sections." />
-
-      <form onSubmit={openProgramConfirm} className="card-gold-border p-5">
-        <h3 className="form-section-title">Add Program</h3>
-        <div className="mt-3 grid gap-3">
-          <div className="form-field">
-            <label htmlFor="program-name">Program Name</label>
-            <input
-              id="program-name"
-              placeholder="BSIT"
-              value={programForm.name}
-              onChange={(e) => setProgramForm({ name: sanitizeProgramName(e.target.value) })}
-              className="rounded-lg border px-3 py-2 uppercase"
-              required
-            />
-            <p className="form-field__hint">Letters only (example: BSIT, BSCS).</p>
-            {programPreviewName && <p className="form-field__hint">Preview: <strong>{programPreviewName}</strong></p>}
-            {programErrors.name && <p className="form-field__error">{programErrors.name}</p>}
-          </div>
-          <button type="submit" className="rounded-lg bg-[#ffb736] px-4 py-2 font-bold text-[#491464] md:justify-self-start">Add program</button>
-        </div>
-      </form>
+      <PageHeader
+        title="Programs & Sections"
+        description="BS Hospitality Management and BS Tourism Management are already available. Add a section for 1st, 2nd, 3rd, or 4th year."
+      />
 
       <form onSubmit={submitSection} className="card-gold-border p-5">
         <h3 className="form-section-title">Add Section</h3>
@@ -325,7 +284,7 @@ export default function ProgramsPage() {
             <label htmlFor="section-year">Year Level</label>
             <select id="section-year" value={sectionForm.year_level} onChange={(e) => setSectionForm({ ...sectionForm, year_level: e.target.value })} className="rounded-lg border px-3 py-2" required>
               <option value="">Select year level</option>
-              {[1, 2, 3, 4].map((level) => <option key={level} value={level}>{level}</option>)}
+              {YEAR_LEVELS.map((level) => <option key={level.value} value={level.value}>{level.label}</option>)}
             </select>
             {sectionErrors.year_level && <p className="form-field__error">{sectionErrors.year_level}</p>}
           </div>
@@ -341,17 +300,18 @@ export default function ProgramsPage() {
             {sectionErrors.semester && <p className="form-field__error">{sectionErrors.semester}</p>}
           </div>
 
-          <div className="form-field md:col-span-2">
-            <label htmlFor="section-name">Section Name</label>
+          <div className="form-field">
+            <label htmlFor="section-name">Section Number</label>
             <input
               id="section-name"
-              placeholder="A"
+              inputMode="numeric"
+              placeholder="1"
               value={sectionForm.name}
               onChange={(e) => setSectionForm({ ...sectionForm, name: sanitizeSectionName(e.target.value) })}
-              className="rounded-lg border px-3 py-2 uppercase"
+              className="rounded-lg border px-3 py-2"
               required
             />
-            <p className="form-field__hint">Letters only. Combined with program and year level (example: BSIT 2A).</p>
+            <p className="form-field__hint">Number only. The section label is the program code, year, and section (example: BSHM 1-1).</p>
             {previewSectionLabel && <p className="form-field__hint">Preview: <strong>{previewSectionLabel}</strong></p>}
             {sectionErrors.name && <p className="form-field__error">{sectionErrors.name}</p>}
           </div>
@@ -593,48 +553,6 @@ export default function ProgramsPage() {
             </>
           )}
         </div>
-      </Modal>
-
-      <Modal
-        open={programModalOpen}
-        title="Confirm Add Program"
-        onClose={() => !submittingProgram && setProgramModalOpen(false)}
-        footer={(
-          <>
-            <button type="button" className="rounded-lg border border-[#5c297c]/20 px-4 py-2 text-sm font-semibold text-[#491464]" onClick={() => setProgramModalOpen(false)} disabled={submittingProgram}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="rounded-lg bg-[#ffb736] px-4 py-2 text-sm font-bold text-[#491464] disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={confirmAddProgram}
-              disabled={submittingProgram || !programConfirm.ready}
-            >
-              {submittingProgram ? 'Adding…' : programConfirm.ready ? 'Confirm Add Program' : `Confirm (${programConfirm.countdown}s)`}
-            </button>
-          </>
-        )}
-      >
-        <p className="text-sm text-[#5c297c]">Review the program below before confirming.</p>
-        <div className="mt-4 rounded-lg border border-[#5c297c]/12 bg-[#f8f5fc] p-4 text-sm">
-          <p className="font-semibold text-[#491464]">Changes</p>
-          <ul className="mt-2 space-y-2 text-[#5c297c]">
-            <li>
-              <span className="font-semibold text-[#491464]">New program</span>
-              <br />
-              {programPreviewName || '—'}
-            </li>
-            <li>
-              <span className="font-semibold text-[#491464]">Status</span>
-              <br />
-              Active and available for sections and student registration
-            </li>
-          </ul>
-        </div>
-        {!programConfirm.ready && (
-          <p className="form-field__hint mt-3">Confirm unlocks in {programConfirm.countdown} second{programConfirm.countdown === 1 ? '' : 's'}.</p>
-        )}
-        {programError && <p className="form-field__error mt-3">{programError}</p>}
       </Modal>
 
       <Modal

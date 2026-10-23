@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import LoadingScreen from '../../components/LoadingScreen'
 import DashboardStatCard from '../../components/dashboard/DashboardStatCard'
 import QuickActionCard from '../../components/dashboard/QuickActionCard'
-import RecentActivity from '../../components/dashboard/RecentActivity'
+import DashboardCourseAnalytics from '../../components/dashboard/DashboardCourseAnalytics'
 import PageHeader from '../../components/PageHeader'
 import { useAuth } from '../../context/AuthContext'
 import { useRefreshTick } from '../../context/RealtimeContext'
@@ -92,7 +92,6 @@ export default function SuperAdminDashboardPage() {
   const { user } = useAuth()
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
-  const [activityPage, setActivityPage] = useState(1)
   const [now, setNow] = useState(() => new Date())
   const refreshTick = useRefreshTick()
 
@@ -104,7 +103,7 @@ export default function SuperAdminDashboardPage() {
   useEffect(() => {
     let cancelled = false
     client
-      .get('/super-admin/dashboard', { params: { activity_page: activityPage } })
+      .get('/super-admin/dashboard')
       .then((res) => {
         if (!cancelled) setData(res.data)
       })
@@ -114,7 +113,7 @@ export default function SuperAdminDashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [refreshTick, activityPage])
+  }, [refreshTick])
 
   if (error) {
     return (
@@ -205,13 +204,6 @@ export default function SuperAdminDashboardPage() {
         <h2 id="dash-actions-heading" className="dash-section-title">Quick actions</h2>
         <div className="dash-actions">
           <QuickActionCard
-            tone="plum"
-            to="/program-chair/students"
-            icon={<IconUsers />}
-            title="Manage students"
-            description="View and manage student accounts"
-          />
-          <QuickActionCard
             tone="violet"
             to="/program-chair/faculty"
             icon={<IconUsers />}
@@ -235,13 +227,7 @@ export default function SuperAdminDashboardPage() {
         </div>
       </section>
 
-      <RecentActivity
-        items={data.recent_activity?.data || []}
-        page={data.recent_activity?.current_page || 1}
-        lastPage={data.recent_activity?.last_page || 1}
-        total={data.recent_activity?.total || 0}
-        onPageChange={setActivityPage}
-      />
+      <DashboardCourseAnalytics />
     </div>
   )
 }

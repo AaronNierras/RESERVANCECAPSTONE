@@ -5,6 +5,7 @@ export default function CheckOutPanel({ hotel, onCheckOut, loading }) {
   const [reservationId, setReservationId] = useState('')
   const [paymentType, setPaymentType] = useState('cash')
   const [amountTendered, setAmountTendered] = useState('')
+  const [computedTotal, setComputedTotal] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -24,10 +25,12 @@ export default function CheckOutPanel({ hotel, onCheckOut, loading }) {
         reservation_id: reservationId,
         payment_type: paymentType,
         amount_tendered: Number(amountTendered),
+        computed_total: hotel?.manual_computation ? Number(computedTotal) : undefined,
       })
       setSuccess('Guest checked out successfully.')
       setReservationId('')
       setAmountTendered('')
+      setComputedTotal('')
     } catch (err) {
       const msg = err.response?.data?.errors
       const first = msg ? Object.values(msg).flat()[0] : 'Check-out failed.'
@@ -55,6 +58,7 @@ export default function CheckOutPanel({ hotel, onCheckOut, loading }) {
                 value={reservationId}
                 onChange={(e) => {
                   setReservationId(e.target.value)
+                  if (hotel?.manual_computation) return
                   const res = checkedIn.find((r) => r.id === e.target.value)
                   if (res) setAmountTendered(String(res.total))
                 }}
@@ -63,13 +67,13 @@ export default function CheckOutPanel({ hotel, onCheckOut, loading }) {
                 <option value="">Choose a guest…</option>
                 {checkedIn.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.guest_first_name} {r.guest_last_name} — Room {r.room_number} ({formatPeso(r.total)})
+                    {r.guest_first_name} {r.guest_last_name} — Room {r.room_number}{hotel?.manual_computation ? '' : ` (${formatPeso(r.total)})`}
                   </option>
                 ))}
               </select>
             </div>
 
-            {selected && (
+            {selected && !hotel?.manual_computation && (
               <div className="hotel-rate-summary">
                 <div className="hotel-rate-summary__row">
                   <span>Room {selected.room_number} · {selected.nights} night{selected.nights === 1 ? '' : 's'}</span>
@@ -79,6 +83,23 @@ export default function CheckOutPanel({ hotel, onCheckOut, loading }) {
                   <span>Amount due</span>
                   <strong>{formatPeso(selected.total)}</strong>
                 </div>
+              </div>
+            )}
+            {selected && hotel?.manual_computation && (
+              <div className="hotel-field">
+                <label htmlFor="computed-bill">Bill you computed</label>
+                <input
+                  id="computed-bill"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={computedTotal}
+                  onChange={(e) => setComputedTotal(e.target.value)}
+                  required
+                />
+                <span className="hotel-field__hint">
+                  Room {selected.room_number} · {selected.nights} night{selected.nights === 1 ? '' : 's'} · {rateLabel(selected.rate_type)}. Enter the total you calculated.
+                </span>
               </div>
             )}
           </section>

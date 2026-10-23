@@ -100,9 +100,11 @@ export function AuthProvider({ children }) {
 
   const register = async (payload) => {
     const res = await client.post('/register', payload)
-    setAuth(res.data.token, res.data.user)
-    setUser(res.data.user)
-    return res.data.user
+    if (res.data.token && res.data.user) {
+      setAuth(res.data.token, res.data.user)
+      setUser(res.data.user)
+    }
+    return res.data
   }
 
   const logout = async () => {

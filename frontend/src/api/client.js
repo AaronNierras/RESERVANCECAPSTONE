@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { getRuntimeConfig } from '../config'
+import { reportClientError } from '../utils/reportError'
 
 const client = axios.create({
   baseURL: getRuntimeConfig().apiUrl,
@@ -32,6 +33,15 @@ client.interceptors.response.use(
       localStorage.removeItem('reservance_user')
       if (!window.location.pathname.startsWith('/login')) {
         window.location.href = '/login'
+      }
+    } else {
+      const method = String(error.config?.method || 'get').toLowerCase()
+      const url = String(error.config?.url || '')
+      const status = error.response?.status
+      if (method !== 'get' && status !== 422 && !url.includes('/system-errors')) {
+        const message = error.response?.data?.message
+          || (error.response ? 'The last action could not be completed.' : 'The server could not be reached. The rest of this page is still available.')
+        reportClientError(message, window.location.pathname)
       }
     }
     return Promise.reject(error)

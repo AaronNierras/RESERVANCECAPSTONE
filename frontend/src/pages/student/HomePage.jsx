@@ -19,20 +19,23 @@ export default function StudentHomePage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Welcome" description="View activities, scores, and progress." />
+      <PageHeader title="Welcome" description="Your classes, activities, and progress." />
 
-      {profile && (
-        <section className="student-academic-card" aria-label="Academic information">
-          <p className="student-academic-card__program">
-            {profile.section?.display_label
-              || formatSectionLabel(profile.program?.name, profile.year_level, profile.section?.name, profile.section?.semester)}
-          </p>
-          <p className="student-academic-card__meta">
-            {profile.year_level_label || 'Year level'}
-          </p>
-          <p className="student-academic-card__year">{period?.school_year || 'School year'}</p>
-        </section>
-      )}
+      <section className="student-academic-card" aria-label="Student profile">
+        <p className="student-academic-card__program">{user?.name || 'Student'}</p>
+        <p className="student-academic-card__meta">{user?.email}</p>
+        {profile?.student_number && <p className="student-academic-card__meta">{profile.student_number}</p>}
+        <p className="student-academic-card__meta">
+          {profile?.program?.name || 'Course assigned after acceptance'}
+        </p>
+        <p className="student-academic-card__meta">
+          {profile?.section?.display_label
+            || (profile?.section?.name
+              ? formatSectionLabel(profile.program?.code || profile.program?.name, profile.year_level, profile.section?.name, profile.section?.semester)
+              : 'Section not assigned yet')}
+        </p>
+        <p className="student-academic-card__year">{profile?.year_level_label || 'Year level'} · {period?.school_year || 'School year'}</p>
+      </section>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Link to="/student/activities" className="card-gold-border block p-6 hover:shadow-md">

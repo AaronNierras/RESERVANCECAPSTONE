@@ -1,14 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { formatPeso, rateLabel } from '../../utils/hotelUtils'
+import ScenarioNumberSheet, { defaultScenarioScoring } from './ScenarioNumberSheet'
 
-const SCENARIO_TABS = [
-  { id: 'briefing', label: 'Briefing', hint: 'What students read' },
-  { id: 'booking', label: 'Booking', hint: 'Correct reservation' },
-  { id: 'checkout', label: 'Check-out', hint: 'Payment & steps' },
+const ANSWER_PANES = [
+  { id: 'booking', label: 'Correct reservation', hint: 'Guest, room, and rate the system checks' },
+  { id: 'checkout', label: 'Payment and steps', hint: 'Check-in, check-out, and the bill' },
 ]
 
-export default function SimulationScenarioPanel({ config, onChange }) {
-  const [activeTab, setActiveTab] = useState('briefing')
+export default function SimulationScenarioPanel({ config, onChange, onUploadImage, uploading }) {
+  const [answerPane, setAnswerPane] = useState('booking')
 
   const scenario = config.scenario || {}
   const guest = scenario.guest || {}
@@ -31,6 +31,12 @@ export default function SimulationScenarioPanel({ config, onChange }) {
     scenario: { ...scenario, ...patch },
   })
 
+  useEffect(() => {
+    if (!scenario.scoring) {
+      updateScenario({ scoring: defaultScenarioScoring() })
+    }
+  }, [])
+
   const applyCalculatedTotal = () => {
     if (expectedTotal == null) return
     updateScenario({
@@ -43,78 +49,75 @@ export default function SimulationScenarioPanel({ config, onChange }) {
     })
   }
 
-  const activeIndex = SCENARIO_TABS.findIndex((t) => t.id === activeTab)
+  const guestLabel = guest.first_name || guest.last_name
+    ? `${guest.first_name || ''} ${guest.last_name || ''}`.trim()
+    : 'Not set'
 
   return (
     <div className="sim-scenario-config">
-      <div className="sim-scenario-summary">
-        <p className="sim-scenario-summary__title">Scenario overview</p>
-        <ul className="sim-scenario-summary__list">
-          <li>
-            <span>Guest</span>
-            <strong>
-              {guest.first_name || guest.last_name
-                ? `${guest.first_name || '—'} ${guest.last_name || ''}`.trim()
-                : 'Not set'}
-            </strong>
-          </li>
-          <li>
-            <span>Room</span>
-            <strong>
-              {reservation.room_number
-                ? `Room ${reservation.room_number}${selectedType ? ` · ${selectedType.label}` : ''}`
-                : 'Not set'}
-            </strong>
-          </li>
-          <li>
-            <span>Expected bill</span>
-            <strong>{expectedTotal != null ? formatPeso(expectedTotal) : '—'}</strong>
-          </li>
-        </ul>
-      </div>
+      <section className="sim-scenario-briefing">
+        <h3>Student briefing</h3>
+        <p>
+          This is the only scenario text students see before they start. Describe the guest and what they need to do — do not include the answer key here.
+        </p>
+        <div className="af-field">
+          <label htmlFor="scenario-briefing">Briefing text</label>
+          <textarea
+            id="scenario-briefing"
+            className="af-textarea"
+            rows={5}
+            value={scenario.briefing || ''}
+            onChange={(e) => updateScenario({ briefing: e.target.value })}
+            placeholder="Example: Maria Santos will arrive today. She needs a Deluxe room for 2 nights. Book her stay, check her in, then check her out with cash."
+          />
+        </div>
+      </section>
 
-      <nav className="sim-scenario-tabs" aria-label="Scenario sections">
-        {SCENARIO_TABS.map((tab, i) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={`sim-scenario-tabs__btn${activeTab === tab.id ? ' is-active' : ''}${i < activeIndex ? ' is-done' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <span className="sim-scenario-tabs__num">{i + 1}</span>
-            <span className="sim-scenario-tabs__text">
-              <span className="sim-scenario-tabs__label">{tab.label}</span>
-              <span className="sim-scenario-tabs__hint">{tab.hint}</span>
-            </span>
-          </button>
-        ))}
-      </nav>
+      <ScenarioNumberSheet
+        scoring={scenario.scoring}
+        onChange={(scoring) => updateScenario({ scoring })}
+        onUploadImage={onUploadImage}
+        uploading={uploading}
+      />
 
-      <div className="sim-scenario-panel">
-        {activeTab === 'briefing' && (
-          <section className="sim-scenario-config__section">
-            <h3 className="sim-scenario-panel__title">Student briefing</h3>
-            <p className="sim-hotel-config__help">
-              This is the only scenario text students see before they start. Describe the guest and what they need to do — do not include the answer key here.
-            </p>
-            <div className="af-field">
-              <label htmlFor="scenario-briefing">Briefing text</label>
-              <textarea
-                id="scenario-briefing"
-                className="af-textarea"
-                rows={5}
-                value={scenario.briefing || ''}
-                onChange={(e) => updateScenario({ briefing: e.target.value })}
-                placeholder="Example: Maria Santos will arrive today. She needs a Deluxe room for 2 nights. Book her stay, check her in, then check her out with cash."
-              />
-            </div>
-            <div className="sim-scenario-nav-hint">
-              Next: set the <strong>correct booking details</strong> students must enter.
-            </div>
-          </section>
-        )}
+      <section className="sim-answer-key">
+        <header className="sim-answer-key__head">
+          <div>
+            <h3>Answer key</h3>
+            <p>Students never see this. Pick one side to edit. The other side stays saved.</p>
+          </div>
+          <ul className="sim-scenario-summary__list">
+            <li><span>Guest</span><strong>{guestLabel}</strong></li>
+            <li>
+              <span>Room</span>
+              <strong>
+                {reservation.room_number
+                  ? `Room ${reservation.room_number}${selectedType ? ` · ${selectedType.label}` : ''}`
+                  : 'Not set'}
+              </strong>
+            </li>
+            <li><span>Expected bill</span><strong>{expectedTotal != null ? formatPeso(expectedTotal) : '—'}</strong></li>
+          </ul>
+        </header>
 
-        {activeTab === 'booking' && (
+        <div className="sim-answer-key__split">
+          <nav className="sim-answer-key__nav" aria-label="Answer key">
+            {ANSWER_PANES.map((pane) => (
+              <button
+                key={pane.id}
+                type="button"
+                className={`sim-answer-key__choice${answerPane === pane.id ? ' is-active' : ''}`}
+                aria-pressed={answerPane === pane.id}
+                onClick={() => setAnswerPane(pane.id)}
+              >
+                <strong>{pane.label}</strong>
+                <span>{pane.hint}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="sim-scenario-panel">
+        {answerPane === 'booking' && (
           <section className="sim-scenario-config__section">
             <h3 className="sim-scenario-panel__title">Correct booking (answer key)</h3>
             <p className="sim-hotel-config__help">
@@ -208,7 +211,7 @@ export default function SimulationScenarioPanel({ config, onChange }) {
           </section>
         )}
 
-        {activeTab === 'checkout' && (
+        {answerPane === 'checkout' && (
           <section className="sim-scenario-config__section">
             <h3 className="sim-scenario-panel__title">Check-out &amp; workflow</h3>
             <p className="sim-hotel-config__help">
@@ -271,26 +274,9 @@ export default function SimulationScenarioPanel({ config, onChange }) {
             )}
           </section>
         )}
-      </div>
-
-      <footer className="sim-scenario-footer">
-        <button
-          type="button"
-          className="af-btn af-btn--ghost"
-          disabled={activeIndex <= 0}
-          onClick={() => setActiveTab(SCENARIO_TABS[activeIndex - 1].id)}
-        >
-          Previous section
-        </button>
-        <button
-          type="button"
-          className="af-btn af-btn--ghost"
-          disabled={activeIndex >= SCENARIO_TABS.length - 1}
-          onClick={() => setActiveTab(SCENARIO_TABS[activeIndex + 1].id)}
-        >
-          Next section
-        </button>
-      </footer>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }

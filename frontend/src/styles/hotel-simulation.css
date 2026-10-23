@@ -724,6 +724,103 @@
   border-top: 1px dashed #e8dff0;
 }
 
+.sim-scenario-briefing {
+  padding: 1rem 1.15rem 1.1rem;
+  border: 1px solid #e8dff0;
+  border-left: 4px solid #ffb736;
+  border-radius: 0.85rem;
+  background: #fff;
+}
+
+.sim-scenario-briefing h3,
+.sim-answer-key__head h3 {
+  margin: 0;
+  color: #491464;
+  font-size: 1.05rem;
+}
+
+.sim-scenario-briefing p,
+.sim-answer-key__head p {
+  margin: 0.35rem 0 0.85rem;
+  color: #5c297c;
+  line-height: 1.45;
+}
+
+.sim-answer-key {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid rgba(73, 20, 100, 0.14);
+  border-radius: 0.9rem;
+  background: #faf7fc;
+}
+
+.sim-answer-key__head {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.sim-answer-key__split {
+  display: grid;
+  grid-template-columns: 15.5rem minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.sim-answer-key__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.sim-answer-key__choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.85rem 0.9rem;
+  border: 2px solid rgba(73, 20, 100, 0.14);
+  border-radius: 0.8rem;
+  background: #fff;
+  color: #491464;
+  cursor: pointer;
+}
+
+.sim-answer-key__choice strong {
+  font-size: 0.92rem;
+}
+
+.sim-answer-key__choice span {
+  color: #7c5a96;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.sim-answer-key__choice.is-active {
+  border-color: #491464;
+  background: #491464;
+  color: #fff;
+}
+
+.sim-answer-key__choice.is-active span {
+  color: #ffd62e;
+}
+
+.sim-answer-key .sim-scenario-panel {
+  margin-top: 0;
+}
+
+@media (max-width: 860px) {
+  .sim-answer-key__split {
+    grid-template-columns: 1fr;
+  }
+
+  .sim-answer-key__nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .sim-scenario-summary {
   padding: 0.85rem 1rem;
   border-radius: 0.75rem;
@@ -1187,4 +1284,49 @@
 
 .hotel-result__criterion.fail {
   color: #9d174d;
+}
+
+.hotel-scenarios {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.hotel-scenario-card {
+  background: #fff;
+  border: 1px solid rgba(73, 20, 100, 0.16);
+  border-left: 4px solid #ffb736;
+  border-radius: 0.75rem;
+  padding: 0.9rem 1rem;
+}
+
+.hotel-scenario-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #5c297c;
+  font-size: 0.85rem;
+}
+
+.hotel-scenario-card h3 {
+  margin: 0.35rem 0;
+  color: #2e0046;
+  font-size: 1rem;
+}
+
+.hotel-scenario-card p {
+  margin: 0;
+}
+
+.hotel-scenario-card img {
+  display: block;
+  max-width: 100%;
+  margin-top: 0.6rem;
+  border-radius: 0.5rem;
+}
+
+.hotel-scenario-card__tries {
+  margin-top: 0.45rem !important;
+  color: #712c83;
+  font-weight: 600;
 }

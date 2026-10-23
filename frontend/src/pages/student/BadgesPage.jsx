@@ -11,7 +11,7 @@ export default function BadgesPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Badges" description="Earned achievements." />
+      <PageHeader title="Achievements" description="Earned achievements." />
       <div className="grid gap-4 md:grid-cols-2">
         {badges.map((b) => (
           <div key={b.id} className="card-gold-border p-4">

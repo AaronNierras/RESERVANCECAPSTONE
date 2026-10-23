@@ -39,7 +39,12 @@ class AuthController extends Controller
         }
 
         if ($user->status === 'inactive') {
-            throw ValidationException::withMessages(['email' => ['Account is inactive.']]);
+            $waiting = $user->roleName() === Role::STUDENT && ! $user->studentProfile?->section_id;
+            throw ValidationException::withMessages([
+                'email' => [$waiting
+                    ? 'Your registration is waiting for the Program Chair. You can sign in after it is accepted.'
+                    : 'This account is inactive. Ask an administrator to activate it.'],
+            ]);
         }
 
         if ($this->presence->hasActiveLogin($user)) {
@@ -80,7 +85,7 @@ class AuthController extends Controller
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
             'role_id' => $roleId,
-            'status' => 'active',
+            'status' => 'inactive',
         ]);
 
         StudentProfile::create([
@@ -88,29 +93,17 @@ class AuthController extends Controller
             'student_number' => $data['student_number'],
             'first_name' => $data['first_name'],
             'last_name' => $data['last_name'],
-            'academic_status' => StudentProfile::ACADEMIC_ACTIVE,
-        ]);
-
-        $user->load([
-            'role',
-            'studentProfile.program',
-            'studentProfile.section',
-            'studentProfile.currentAcademicPeriod',
+            'academic_status' => StudentProfile::ACADEMIC_INACTIVE,
         ]);
 
         $chairIds = User::whereHas('role', fn ($q) => $q->where('name', Role::PROGRAM_CHAIR))->pluck('id')->all();
-        $this->notifications->notifyUsers($chairIds, 'new_student', 'New student registered', $user->name);
-        $this->audit->log($user, 'register_student', 'student_registry', $request);
+        $this->notifications->notifyUsers($chairIds, 'new_student', 'Student waiting for acceptance', $user->name.' registered and is waiting in the registration gate.');
+        $this->audit->log($user, 'register_student', 'registration_gate', $request);
         $this->realtime->refresh('students');
         $this->realtime->refresh('dashboard');
 
-        $user->update(['last_login_at' => now()]);
-        $token = $user->createToken('api')->plainTextToken;
-        $this->presence->heartbeat($user, $request, 'online');
-
         return response()->json([
-            'token' => $token,
-            'user' => $this->userPayload($user),
+            'message' => 'Registration received. You can sign in after the Program Chair accepts your account and assigns your section.',
         ], 201);
     }
 

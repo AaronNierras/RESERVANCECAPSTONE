@@ -30,9 +30,10 @@ class DatabaseSeeder extends Seeder
             Role::STUDENT,
         ])->mapWithKeys(fn ($name) => [$name => Role::create(['name' => $name])]);
 
-        $program = Program::create(['slug' => 'bsit', 'name' => 'BSIT', 'status' => 'active']);
-        $section1a = Section::create(['program_id' => $program->id, 'name' => 'A', 'year_level' => 1, 'semester' => 1, 'status' => 'active']);
-        $section2a = Section::create(['program_id' => $program->id, 'name' => 'A', 'year_level' => 2, 'semester' => 1, 'status' => 'active']);
+        $bshm = Program::create(['slug' => 'bshm', 'name' => 'BS Hospitality Management', 'status' => 'active']);
+        $bstm = Program::create(['slug' => 'bstm', 'name' => 'BS Tourism Management', 'status' => 'active']);
+        Section::create(['program_id' => $bshm->id, 'name' => '1', 'year_level' => 1, 'semester' => 1, 'status' => 'active']);
+        $section2a = Section::create(['program_id' => $bstm->id, 'name' => '1', 'year_level' => 2, 'semester' => 1, 'status' => 'active']);
 
         $period = AcademicPeriod::create([
             'school_year_start' => 2026,
@@ -65,7 +66,7 @@ class DatabaseSeeder extends Seeder
             'role_id' => $roles[Role::FACULTY]->id,
             'status' => 'active',
         ]);
-        FacultyProfile::create(['user_id' => $faculty->id, 'department' => 'IT']);
+        FacultyProfile::create(['user_id' => $faculty->id, 'department' => 'BSHM / BSTM']);
 
         $student = User::create([
             'name' => 'Student Demo',
@@ -79,7 +80,7 @@ class DatabaseSeeder extends Seeder
             'student_number' => '20240001',
             'first_name' => 'Student',
             'last_name' => 'Demo',
-            'program_id' => $program->id,
+            'program_id' => $bstm->id,
             'section_id' => $section2a->id,
             'year_level' => 2,
             'academic_status' => StudentProfile::ACADEMIC_ACTIVE,

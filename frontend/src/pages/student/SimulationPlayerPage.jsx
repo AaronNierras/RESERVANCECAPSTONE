@@ -7,6 +7,7 @@ import CheckOutPanel from '../../components/hotel/CheckOutPanel'
 import HotelShell from '../../components/hotel/HotelShell'
 import ReservationPanel from '../../components/hotel/ReservationPanel'
 import RoomBoard from '../../components/hotel/RoomBoard'
+import ScenarioCards from '../../components/hotel/ScenarioCards'
 import SimulationResult from '../../components/hotel/SimulationResult'
 import '../../styles/hotel-simulation.css'
 
@@ -154,6 +155,7 @@ export default function SimulationPlayerPage() {
               <p className="font-bold mb-2">Front Desk Briefing</p>
               <p>{activity.briefing || activity.instructions || 'Complete the guest reservation workflow at the front desk.'}</p>
             </div>
+            <ScenarioCards scenarios={activity.scenarios || []} />
             <button type="button" className="hotel-intro__btn" onClick={beginSimulation}>
               Enter Front Desk
             </button>
@@ -172,12 +174,17 @@ export default function SimulationPlayerPage() {
     )
   }
 
-  const panel = activeTab === 'reservations' ? (
-    <ReservationPanel hotel={hotel} onBook={handleBook} loading={actionLoading} />
-  ) : activeTab === 'checkin' ? (
-    <CheckInPanel hotel={hotel} onCheckIn={handleCheckIn} loading={actionLoading} />
-  ) : (
-    <CheckOutPanel hotel={hotel} onCheckOut={handleCheckOut} loading={actionLoading} />
+  const panel = (
+    <>
+      <ScenarioCards scenarios={hotel?.scenarios || activity.scenarios || []} triesLeft={hotel?.tries_left} />
+      {activeTab === 'reservations' ? (
+        <ReservationPanel hotel={hotel} onBook={handleBook} loading={actionLoading} />
+      ) : activeTab === 'checkin' ? (
+        <CheckInPanel hotel={hotel} onCheckIn={handleCheckIn} loading={actionLoading} />
+      ) : (
+        <CheckOutPanel hotel={hotel} onCheckOut={handleCheckOut} loading={actionLoading} />
+      )}
+    </>
   )
 
   return (

@@ -7,7 +7,10 @@ import { normalizeDocumentFile } from '../../utils/documentImport'
 import { getApiBase } from '../../config'
 import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 import ActivityManagerPanel from '../../components/activity-factory/ActivityManagerPanel'
+import AssessmentTypePicker from '../../components/activity-factory/AssessmentTypePicker'
+import PublishReview from '../../components/activity-factory/PublishReview'
 import QuestionCard from '../../components/activity-factory/QuestionCard'
+import SimulationRubricGrade from '../../components/activity-factory/SimulationRubricGrade'
 import TargetAudiencePanel from '../../components/activity-factory/TargetAudiencePanel'
 import SimulationHotelPanel from '../../components/simulation-factory/SimulationHotelPanel'
 import SimulationScenarioPanel from '../../components/simulation-factory/SimulationScenarioPanel'
@@ -29,6 +32,7 @@ import {
   validateAssessment,
   validateCombination,
   validateSimulation,
+  validateTargeting,
 } from '../../utils/activityFactory'
 import '../../styles/activity-factory.css'
 import '../../styles/hotel-simulation.css'
@@ -54,6 +58,7 @@ export default function ActivityFactoryPage() {
   const [form, setForm] = useState(null)
   const [targeting, setTargeting] = useState(INITIAL_TARGETING)
   const [activities, setActivities] = useState([])
+  const [templates, setTemplates] = useState([])
   const [programs, setPrograms] = useState([])
   const [students, setStudents] = useState([])
   const [autoSave, setAutoSave] = useState(true)
@@ -65,6 +70,10 @@ export default function ActivityFactoryPage() {
   const [importBusy, setImportBusy] = useState(false)
   const [importError, setImportError] = useState('')
   const [importNotice, setImportNotice] = useState('')
+  const [reviewing, setReviewing] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [publishError, setPublishError] = useState('')
+  const [gradeActivity, setGradeActivity] = useState(null)
   const saveTimerRef = useRef(null)
   const fileInputRef = useRef(null)
   const { registerGuard, unregisterGuard } = useActivityFactoryGuard()
@@ -72,6 +81,7 @@ export default function ActivityFactoryPage() {
 
   const load = useCallback(() => {
     client.get('/activities').then((res) => setActivities(res.data.activities || []))
+    client.get('/templates').then((res) => setTemplates(res.data.templates || [])).catch(() => {})
     client.get('/programs').catch(() => ({ data: { programs: [] } })).then((res) => setPrograms(res.data.programs || []))
     const user = getStoredUser()
     const studentsUrl = user?.role === 'program_chair' ? '/super-admin/students' : '/faculty/students'
@@ -133,6 +143,8 @@ export default function ActivityFactoryPage() {
     setSaveState('idle')
     setImportBusy(false)
     setImportError('')
+    setReviewing(false)
+    setPublishError('')
     setImportNotice('')
   }
 
@@ -255,7 +267,10 @@ export default function ActivityFactoryPage() {
   const goToStep = (nextStep) => {
     if (nextStep === step) return
     if (nextStep !== 'setup' && !workspaceStarted) return
-    guardedAction(() => setStep(nextStep))
+    guardedAction(() => {
+      setReviewing(false)
+      setStep(nextStep)
+    })
   }
 
   const leaveWorkspace = () => guardedAction(resetWorkspace)
@@ -371,7 +386,13 @@ export default function ActivityFactoryPage() {
       setStep('questions')
       setDirty(true)
       setValidation(null)
-      setImportNotice('Questions were built from the file. Edit any question or answer before you continue.')
+      const spec = (res.data.specification || [])
+        .filter((row) => row.count > 0)
+        .map((row) => `${row.level} ${row.count}`)
+        .join(', ')
+      setImportNotice(spec
+        ? `Questions follow the table of specification: ${spec}. Edit any item before you continue.`
+        : 'Questions were built from the file. Edit any question or answer before you continue.')
     } catch (error) {
       const errors = error?.response?.data?.errors
       const first = errors ? Object.values(errors).flat()[0] : ''
@@ -383,11 +404,12 @@ export default function ActivityFactoryPage() {
   }
 
   const runValidation = () => {
+    const context = { programs, students }
     const result = form?.type === 'simulation'
-      ? validateSimulation(form, targeting)
+      ? validateSimulation(form, targeting, context)
       : form?.type === 'combination'
-        ? validateCombination(form, targeting)
-        : validateAssessment(form, targeting)
+        ? validateCombination(form, targeting, context)
+        : validateAssessment(form, targeting, context)
     setValidation(result)
     return result
   }
@@ -399,17 +421,37 @@ export default function ActivityFactoryPage() {
   const publishAssessment = async () => {
     const result = runValidation()
     if (!result.valid) {
+      setReviewing(false)
+      const fields = result.fieldErrors || {}
       if (result.questionErrors?.length) setStep('questions')
-      else if (result.fieldErrors?.guest || result.fieldErrors?.reservation) setStep('scenario')
-      else if (result.fieldErrors?.rooms) setStep('hotel')
+      else if (fields.guest || fields.reservation || fields.briefing || fields.checkout) setStep('scenario')
+      else if (fields.hotel || fields.rooms || fields.room_types) setStep('hotel')
       else if (result.assignmentErrors?.length) setStep('audience')
+      else if (fields.title || fields.description) setStep('setup')
       else setStep('schedule')
+      const questionMessage = result.questionErrors?.[0]?.errors?.[0]
+      const fieldMessage = Object.values(fields)[0]
+      setPublishError(result.assignmentErrors?.[0] || questionMessage || fieldMessage || 'Complete the highlighted step before publishing.')
       return
     }
-    await persistDraft()
-    await client.post(`/activities/${draftId}/publish`)
-    load()
-    resetWorkspace()
+    setPublishing(true)
+    setPublishError('')
+    try {
+      const saved = await persistDraft()
+      const id = saved?.id || draftId
+      await client.post(`/activities/${id}/publish`)
+      load()
+      resetWorkspace()
+    } catch (error) {
+      const errors = error.response?.data?.errors || {}
+      const message = errors.assignments?.[0] || errors.simulation_config?.[0] || errors.questions?.[0] || errors.ends_at?.[0] || errors.status?.[0] || error.response?.data?.message || 'The assessment could not be published.'
+      setPublishError(Array.isArray(message) ? message[0] : message)
+      if (errors.assignments) setStep('audience')
+      if (errors.ends_at || errors.time_limit_minutes) setStep('schedule')
+      setReviewing(false)
+    } finally {
+      setPublishing(false)
+    }
   }
 
   const handlePublishFromHub = async (id) => {
@@ -448,6 +490,26 @@ export default function ActivityFactoryPage() {
       ? SIMULATION_WORKSPACE_STEPS
       : WORKSPACE_STEPS
 
+  const isFaculty = getStoredUser()?.role === 'faculty'
+
+  const useSharedTemplate = async (template) => {
+    const res = await client.post(`/templates/${template.id}/use`)
+    const id = res.data.activity?.id
+    if (!id) return
+    openedDraftRef.current = null
+    setSearchParams({ draft: String(id) })
+    load()
+  }
+
+  const shareWithFaculty = async (activity) => {
+    await client.post(`/activities/${activity.id}/template`, {
+      title: activity.title,
+      visibility: 'faculty_shared',
+    })
+    setImportNotice(`“${activity.title}” is shared. Faculty can copy it and edit their own version.`)
+    load()
+  }
+
   if (view === 'hub') {
     return (
       <div className="af-page">
@@ -455,13 +517,36 @@ export default function ActivityFactoryPage() {
           <div className="af-hero__main">
             <div className="af-hero__copy">
               <h1>Activity Factory</h1>
-              <p>Create engaging assessments with a guided builder. Save drafts, publish when ready, and open for students only when you choose.</p>
+              <p>{isFaculty
+                ? 'Copy a template from the Program Chair, edit your own copy, then give it to your students.'
+                : 'Create engaging assessments with a guided builder. Save drafts, publish when ready, and open for students only when you choose.'}</p>
             </div>
-            <div className="af-hero__cta">
-              <button type="button" className="af-btn af-btn--gold" onClick={startNew}>Create new assessment</button>
-            </div>
+            {!isFaculty && (
+              <div className="af-hero__cta">
+                <button type="button" className="af-btn af-btn--gold" onClick={startNew}>Create new assessment</button>
+              </div>
+            )}
           </div>
         </div>
+        {isFaculty && (
+          <section className="card-gold-border mb-6 p-4">
+            <h2 className="font-bold text-[#491464]">Templates to use</h2>
+            <p className="mt-1 text-sm text-[#5c297c]">Using a template creates your own copy. The Program Chair template stays unchanged.</p>
+            {templates.length === 0 ? (
+              <p className="mt-3 text-sm text-[#5c297c]">No shared templates yet.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {templates.map((template) => (
+                  <li key={template.id} className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="font-semibold text-[#491464]">{template.title}</span>
+                    <button type="button" className="af-btn af-btn--gold" onClick={() => useSharedTemplate(template)}>Use and edit my copy</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+        {importNotice && <p className="mb-4 text-sm font-semibold text-[#491464]">{importNotice}</p>}
         <ActivityManagerPanel
           activities={activities}
           programs={programs}
@@ -470,7 +555,12 @@ export default function ActivityFactoryPage() {
           onOpen={handleOpen}
           onClose={handleClose}
           onDelete={handleDelete}
+          onShare={isFaculty ? undefined : shareWithFaculty}
+          onGrade={setGradeActivity}
         />
+        {gradeActivity && (
+          <SimulationRubricGrade activity={gradeActivity} onClose={() => setGradeActivity(null)} />
+        )}
       </div>
     )
   }
@@ -481,7 +571,15 @@ export default function ActivityFactoryPage() {
         <div className="af-hero__main">
           <div className="af-hero__copy">
             <h1>{form?.title || setup.title || 'New assessment'}</h1>
-            <p>{currentTypeLabel} · Build questions, choose your audience, then publish and open when students should begin.</p>
+            <p>
+              {currentTypeLabel}
+              {' · '}
+              {isSimulation
+                ? 'Set up the hotel, write the briefing, then choose who takes it.'
+                : isCombination
+                  ? 'Write the questions, set up the hotel, then choose who takes it.'
+                  : 'Write the questions, choose who takes them, then set the schedule.'}
+            </p>
           </div>
         </div>
         <div className="af-hero__toolbar">
@@ -568,12 +666,19 @@ export default function ActivityFactoryPage() {
               <>
                 <h2 className="af-section-title">Hotel setup</h2>
                 <p className="af-section-sub">Configure room types, rates, and starting room status for the front desk board.</p>
+                {validation?.fieldErrors?.hotel && <p className="af-error">{validation.fieldErrors.hotel}</p>}
+                {validation?.fieldErrors?.room_types && <p className="af-error">{validation.fieldErrors.room_types}</p>}
+                {validation?.fieldErrors?.rooms && <p className="af-error">{validation.fieldErrors.rooms}</p>}
               </>
             )}
             {step === 'scenario' && (
               <>
                 <h2 className="af-section-title">Scenario setup</h2>
-                <p className="af-section-sub">Use the 3 sections below — Briefing, Booking, and Check-out — to define what students see and how they are graded.</p>
+                <p className="af-section-sub">Start with what students read. Add the scenarios they must follow, then set the answer key at the bottom.</p>
+                {validation?.fieldErrors?.briefing && <p className="af-error">{validation.fieldErrors.briefing}</p>}
+                {validation?.fieldErrors?.guest && <p className="af-error">{validation.fieldErrors.guest}</p>}
+                {validation?.fieldErrors?.reservation && <p className="af-error">{validation.fieldErrors.reservation}</p>}
+                {validation?.fieldErrors?.checkout && <p className="af-error">{validation.fieldErrors.checkout}</p>}
               </>
             )}
             {step === 'audience' && (
@@ -582,63 +687,77 @@ export default function ActivityFactoryPage() {
                 <p className="af-section-sub">Choose who can access this assessment once it is published and opened.</p>
               </>
             )}
-            {step === 'schedule' && (
+            {step === 'schedule' && !reviewing && (
               <>
-                <h2 className="af-section-title">Schedule & publication</h2>
-                <p className="af-section-sub">Set the availability window, save your draft, then publish. Students can begin only after you open the assessment.</p>
+                <h2 className="af-section-title">Schedule and publication</h2>
+                <p className="af-section-sub">Set when the assessment may open, how long an attempt lasts, and whether it opens by itself.</p>
               </>
+            )}
+            {reviewing && (
+              <PublishReview
+                form={form}
+                targeting={targeting}
+                programs={programs}
+                students={students}
+                hotelReady={!validation?.fieldErrors?.rooms && !validation?.fieldErrors?.guest && !validation?.fieldErrors?.reservation}
+                questionsReady={!validation?.questionErrors?.length && !validation?.fieldErrors?.questions}
+                publishing={publishing}
+                onEdit={(next) => { setReviewing(false); setStep(next) }}
+                onPublish={publishAssessment}
+              />
             )}
           </header>
 
           <div className="af-workspace-body">
             {step === 'setup' && (
-              <div className="af-form-grid af-form-grid--2">
-                <div className="af-field">
-                  <label htmlFor="af-title">Activity title</label>
-                  <input id="af-title" className="af-input" value={setup.title} onChange={(e) => {
-                    const title = e.target.value
-                    setSetup({ ...setup, title })
-                    setDirty(true)
-                    if (title.trim()) {
-                      setValidation((current) => {
-                        if (!current?.fieldErrors?.title) return current
-                        const fieldErrors = { ...current.fieldErrors }
-                        delete fieldErrors.title
-                        return { ...current, fieldErrors }
-                      })
-                    }
-                  }} placeholder="Midterm Quiz 1" />
-                  {validation?.fieldErrors?.title && <span className="af-error">{validation.fieldErrors.title}</span>}
-                </div>
-                <div className="af-field">
-                  <label htmlFor="af-type">Assessment type</label>
-                  <select id="af-type" className="af-select" value={setup.type} onChange={(e) => { setSetup({ ...setup, type: e.target.value }); setDirty(true) }}>
-                    {ASSESSMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                </div>
-                <div className="af-field af-form-grid__full">
-                  <label htmlFor="af-desc">Description</label>
-                  <textarea id="af-desc" className="af-textarea" rows={4} value={setup.description} onChange={(e) => { setSetup({ ...setup, description: e.target.value }); setDirty(true) }} placeholder="Brief overview for faculty and students" />
-                </div>
-                {!isSimulation && (
-                  <div className="af-field">
-                    <label htmlFor="af-count">Number of questions</label>
-                    <input
-                      id="af-count"
-                      className="af-input"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={setup.questionCount}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, '')
-                        setSetup({ ...setup, questionCount: val === '' ? '' : Number(val) })
-                        setDirty(true)
-                      }}
-                      placeholder="1"
-                    />
+              <>
+                <AssessmentTypePicker
+                  types={ASSESSMENT_TYPES}
+                  value={setup.type}
+                  onChange={(type) => { setSetup({ ...setup, type }); setDirty(true) }}
+                />
+                <div className="af-form-grid af-form-grid--2">
+                  <div className="af-field af-form-grid__full">
+                    <label htmlFor="af-title">Activity title</label>
+                    <input id="af-title" className="af-input" value={setup.title} onChange={(e) => {
+                      const title = e.target.value
+                      setSetup({ ...setup, title })
+                      setDirty(true)
+                      if (title.trim()) {
+                        setValidation((current) => {
+                          if (!current?.fieldErrors?.title) return current
+                          const fieldErrors = { ...current.fieldErrors }
+                          delete fieldErrors.title
+                          return { ...current, fieldErrors }
+                        })
+                      }
+                    }} placeholder="Midterm Quiz 1" />
+                    {validation?.fieldErrors?.title && <span className="af-error">{validation.fieldErrors.title}</span>}
                   </div>
-                )}
-              </div>
+                  <div className="af-field af-form-grid__full">
+                    <label htmlFor="af-desc">Description</label>
+                    <textarea id="af-desc" className="af-textarea" rows={4} value={setup.description} onChange={(e) => { setSetup({ ...setup, description: e.target.value }); setDirty(true) }} placeholder="Brief overview for faculty and students" />
+                  </div>
+                  {!isSimulation && (
+                    <div className="af-field">
+                      <label htmlFor="af-count">Number of questions</label>
+                      <input
+                        id="af-count"
+                        className="af-input"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={setup.questionCount}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '')
+                          setSetup({ ...setup, questionCount: val === '' ? '' : Number(val) })
+                          setDirty(true)
+                        }}
+                        placeholder="1"
+                      />
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
             {step === 'hotel' && form && (
@@ -652,6 +771,8 @@ export default function ActivityFactoryPage() {
               <SimulationScenarioPanel
                 config={form.simulation_config}
                 onChange={(config) => { setForm({ ...form, simulation_config: config }); setDirty(true) }}
+                onUploadImage={uploadQuestionImage}
+                uploading={uploadingImage}
               />
             )}
 
@@ -682,37 +803,54 @@ export default function ActivityFactoryPage() {
               />
             )}
 
-            {step === 'schedule' && form && (
+            {step === 'schedule' && form && !reviewing && (
               <>
                 <div className="af-form-grid af-form-grid--2">
                   <div className="af-field">
-                    <label htmlFor="af-starts">Start date/time</label>
+                    <label htmlFor="af-starts">Start date and time</label>
                     <input id="af-starts" type="datetime-local" className="af-input" value={form.starts_at} onChange={(e) => { setForm({ ...form, starts_at: e.target.value }); setDirty(true) }} />
+                    <span className="af-card__meta">The assessment cannot be opened, and students cannot begin, before this time.</span>
+                {validation?.fieldErrors?.starts_at && <span className="af-error">{validation.fieldErrors.starts_at}</span>}
                   </div>
                   <div className="af-field">
-                    <label htmlFor="af-ends">End date/time</label>
+                    <label htmlFor="af-ends">End date and time</label>
                     <input id="af-ends" type="datetime-local" className="af-input" value={form.ends_at} onChange={(e) => { setForm({ ...form, ends_at: e.target.value }); setDirty(true) }} />
+                    <span className="af-card__meta">New attempts cannot begin after this time.</span>
                     {validation?.fieldErrors?.ends_at && <span className="af-error">{validation.fieldErrors.ends_at}</span>}
                   </div>
                   <div className="af-field">
-                    <label htmlFor="af-limit">Overall time limit (minutes)</label>
+                    <label htmlFor="af-limit">Overall activity time limit (minutes)</label>
                     <input id="af-limit" type="number" min="1" className="af-input" value={form.time_limit_minutes} onChange={(e) => { setForm({ ...form, time_limit_minutes: e.target.value }); setDirty(true) }} placeholder="Optional" />
+                    {validation?.fieldErrors?.time_limit_minutes && <span className="af-error">{validation.fieldErrors.time_limit_minutes}</span>}
+                  </div>
+                  <div className="af-field">
+                    <span className="af-field__label" id="af-open-mode">Opening</span>
+                    <div className="af-choice" role="group" aria-labelledby="af-open-mode">
+                      <button type="button" className={(form.open_mode || 'manual') === 'manual' ? 'is-active' : ''} onClick={() => { setForm({ ...form, open_mode: 'manual' }); setDirty(true) }}>Open manually</button>
+                      <button type="button" className={form.open_mode === 'automatic' ? 'is-active' : ''} onClick={() => { setForm({ ...form, open_mode: 'automatic' }); setDirty(true) }}>Open at the start time</button>
+                    </div>
+                  </div>
+                  <div className="af-field">
+                    <span className="af-field__label" id="af-late">After the deadline</span>
+                    <div className="af-choice" role="group" aria-labelledby="af-late">
+                      <button type="button" className={(form.late_policy || 'lock') === 'lock' ? 'is-active' : ''} onClick={() => { setForm({ ...form, late_policy: 'lock' }); setDirty(true) }}>Stop new work</button>
+                      <button type="button" className={form.late_policy === 'finish' ? 'is-active' : ''} onClick={() => { setForm({ ...form, late_policy: 'finish' }); setDirty(true) }}>Let a started attempt finish</button>
+                    </div>
                   </div>
                   <div className="af-field af-form-grid__full">
                     <label htmlFor="af-instructions">Student instructions</label>
                     <textarea id="af-instructions" className="af-textarea" rows={4} value={form.instructions} onChange={(e) => { setForm({ ...form, instructions: e.target.value }); setDirty(true) }} placeholder="Instructions shown before students begin" />
+                {validation?.fieldErrors?.instructions && <span className="af-error">{validation.fieldErrors.instructions}</span>}
                   </div>
                 </div>
-                <p className="af-section-sub" style={{ marginTop: '1.5rem' }}>
-                  Publishing makes the assessment complete in your list. Use <strong>Open for students</strong> from the hub when you are ready for attempts to begin.
-                </p>
+                {publishError && <p className="af-error">{publishError}</p>}
               </>
             )}
           </div>
 
           <footer className="af-actions-bar">
             {step === 'setup' && (
-              <div className="af-actions-bar__group" style={{ marginLeft: 'auto' }}>
+              <div className="af-actions-bar__group af-actions-bar__group--end">
                 <button type="button" className="af-btn af-btn--gold" onClick={beginCreation}>Start creation</button>
               </div>
             )}
@@ -735,7 +873,7 @@ export default function ActivityFactoryPage() {
                     <button type="button" className="af-btn af-btn--ghost" onClick={() => setStep('questions')}>Back to questions</button>
                   </div>
                 )}
-                <div className="af-actions-bar__group" style={{ marginLeft: 'auto' }}>
+                <div className="af-actions-bar__group af-actions-bar__group--end">
                   <button type="button" className="af-btn af-btn--purple" onClick={() => setStep('scenario')}>Continue to scenario</button>
                 </div>
               </>
@@ -756,18 +894,25 @@ export default function ActivityFactoryPage() {
                   <button type="button" className="af-btn af-btn--ghost" onClick={() => setStep(isSimulation || isCombination ? 'scenario' : 'questions')}>Back</button>
                 </div>
                 <div className="af-actions-bar__group">
-                  <button type="button" className="af-btn af-btn--purple" onClick={() => setStep('schedule')}>Continue to schedule</button>
+                  <button type="button" className="af-btn af-btn--purple" onClick={() => {
+                    const assignmentErrors = validateTargeting(targeting, { programs, students })
+                    if (assignmentErrors.length) {
+                      setValidation((current) => ({ ...(current || {}), assignmentErrors, valid: false }))
+                      return
+                    }
+                    setStep('schedule')
+                  }}>Continue to schedule</button>
                 </div>
               </>
             )}
-            {step === 'schedule' && form && (
+            {step === 'schedule' && form && !reviewing && (
               <>
                 <div className="af-actions-bar__group">
                   <button type="button" className="af-btn af-btn--ghost" onClick={() => setStep('audience')}>Back to audience</button>
                   <button type="button" className="af-btn af-btn--ghost" onClick={() => saveDraftManual()}>Save draft</button>
                 </div>
                 <div className="af-actions-bar__group">
-                  <button type="button" className="af-btn af-btn--gold" onClick={publishAssessment}>Publish assessment</button>
+                  <button type="button" className="af-btn af-btn--gold" onClick={() => { setPublishError(''); setReviewing(true) }}>Review and publish</button>
                 </div>
               </>
             )}

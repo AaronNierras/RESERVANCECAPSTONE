@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import client from '../../api/client'
 import Modal from '../../components/Modal'
 import PageHeader from '../../components/PageHeader'
@@ -32,8 +32,14 @@ export default function SuperAdminFacultyPage() {
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [confirmModalOpen, setConfirmModalOpen] = useState(false)
+  const [sort, setSort] = useState('name')
 
   const facultyConfirm = useConfirmCountdown(confirmModalOpen)
+  const sortedFaculty = useMemo(() => [...faculty].sort((a, b) => {
+    if (sort === 'email') return a.email.localeCompare(b.email)
+    if (sort === 'status') return String(a.status).localeCompare(String(b.status)) || a.name.localeCompare(b.name)
+    return a.name.localeCompare(b.name)
+  }), [faculty, sort])
 
   const load = () => client.get('/super-admin/faculty').then((res) => setFaculty(res.data.faculty))
   useAutoRefresh(load, [])
@@ -117,6 +123,16 @@ export default function SuperAdminFacultyPage() {
       </form>
 
       <div className="card-gold-border overflow-x-auto">
+        <div className="flex justify-end p-3">
+          <label className="text-sm font-semibold text-[#491464]" htmlFor="faculty-sort">
+            Sort
+            <select id="faculty-sort" className="ml-2 rounded-lg border px-3 py-2" value={sort} onChange={(e) => setSort(e.target.value)}>
+              <option value="name">Name</option>
+              <option value="email">Email</option>
+              <option value="status">Status</option>
+            </select>
+          </label>
+        </div>
         <table className="w-full text-left text-sm">
           <thead className="bg-[#f3edf7] text-[#491464]">
             <tr>
@@ -126,7 +142,7 @@ export default function SuperAdminFacultyPage() {
             </tr>
           </thead>
           <tbody>
-            {faculty.map((member) => (
+            {sortedFaculty.map((member) => (
               <tr key={member.id} className="border-t border-[#5c297c]/10">
                 <td className="p-3">{member.name}</td>
                 <td className="p-3">{member.email}</td>

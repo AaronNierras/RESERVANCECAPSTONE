@@ -15,7 +15,8 @@ class ProcessActivityDeadlines extends Command
     {
         $missed = $engine->markMissedActivities();
         $auto = $engine->closeStaleAttempts();
-        $this->info("Marked {$missed} missed, auto-submitted {$auto} stale attempts.");
+        $schedule = app(\App\Services\ActivityScheduleService::class)->reconcileDue();
+        $this->info("Marked {$missed} missed, auto-submitted {$auto} stale attempts, opened {$schedule['opened']}, closed {$schedule['closed']}.");
 
         return self::SUCCESS;
     }

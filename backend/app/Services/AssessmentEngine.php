@@ -24,43 +24,50 @@ class AssessmentEngine
 
     public function startAttempt(User $student, Activity $activity): StudentAttempt
     {
-        $existing = StudentAttempt::where('student_user_id', $student->id)
-            ->where('activity_id', $activity->id)
-            ->first();
+        return DB::transaction(function () use ($student, $activity) {
+            $existing = StudentAttempt::where('student_user_id', $student->id)
+                ->where('activity_id', $activity->id)
+                ->lockForUpdate()
+                ->first();
 
-        if ($existing) {
-            if (in_array($existing->status, ['submitted', 'missed', 'failed'], true)) {
-                throw new ConflictHttpException('Single attempt policy: you cannot retake this activity.');
+            if ($existing) {
+                if (in_array($existing->status, ['submitted', 'missed', 'failed'], true)) {
+                    throw new ConflictHttpException('Single attempt policy: you cannot retake this activity.');
+                }
+                if ($existing->status === 'simulation_pending') {
+                    $existing->update(['status' => 'in_progress']);
+
+                    return $existing->fresh()->load('activity.questions.choices');
+                }
+                if ($existing->status === 'in_progress') {
+                    return $existing->load('activity.questions.choices');
+                }
             }
-            if ($existing->status === 'simulation_pending') {
-                $existing->update(['status' => 'in_progress']);
 
-                return $existing->fresh()->load('activity.questions.choices');
+            if (! $activity->startHasArrived()) {
+                throw new HttpException(403, 'This activity is not open yet.');
             }
-            if ($existing->status === 'in_progress') {
-                return $existing->load('activity.questions.choices');
+
+            if ($activity->deadlineHasPassed()) {
+                throw new HttpException(403, 'Activity deadline has passed.');
             }
-        }
 
-        if ($activity->ends_at && now()->greaterThan($activity->ends_at)) {
-            throw new HttpException(403, 'Activity deadline has passed.');
-        }
+            $deadline = null;
+            if ($activity->time_limit_minutes) {
+                $deadline = now()->addMinutes((int) $activity->time_limit_minutes);
+            } elseif ($activity->ends_at && ($activity->late_policy ?: 'lock') !== 'finish') {
+                $deadline = $activity->ends_at;
+            }
 
-        $deadline = null;
-        if ($activity->time_limit_minutes) {
-            $deadline = now()->addMinutes($activity->time_limit_minutes);
-        } elseif ($activity->ends_at) {
-            $deadline = $activity->ends_at;
-        }
-
-        return StudentAttempt::create([
-            'student_user_id' => $student->id,
-            'activity_id' => $activity->id,
-            'status' => 'in_progress',
-            'started_at' => now(),
-            'server_deadline_at' => $deadline,
-            'current_question_index' => 0,
-        ]);
+            return StudentAttempt::create([
+                'student_user_id' => $student->id,
+                'activity_id' => $activity->id,
+                'status' => 'in_progress',
+                'started_at' => now(),
+                'server_deadline_at' => $deadline,
+                'current_question_index' => 0,
+            ]);
+        });
     }
 
     public function saveAnswer(StudentAttempt $attempt, Question $question, ?string $answerText): StudentAnswer

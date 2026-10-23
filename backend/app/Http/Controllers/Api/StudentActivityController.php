@@ -25,10 +25,19 @@ class StudentActivityController extends Controller
     public function index(Request $request)
     {
         $student = $request->user()->load('studentProfile');
-        $activities = Activity::with(['assignments', 'attempts' => fn ($q) => $q->where('student_user_id', $student->id)])
-            ->where('status', 'active')
+        $activities = Activity::with([
+            'assignments',
+            'recipients',
+            'attempts' => fn ($q) => $q->where('student_user_id', $student->id),
+        ])
+            ->whereIn('status', ['active', 'published'])
             ->latest()
-            ->get()
+            ->get();
+
+        app(\App\Services\ActivityScheduleService::class)->reconcileDue();
+
+        $activities = $activities
+            ->map(fn ($activity) => $activity->fresh() ?? $activity)
             ->filter(fn ($a) => $this->audience->studentCanAccess($student, $a))
             ->map(fn ($a) => $this->listItem($a, $student->id))
             ->values();
@@ -63,6 +72,8 @@ class StudentActivityController extends Controller
             $config = $activity->simulation_config ?? [];
             $payload['hotel_name'] = $config['hotel_name'] ?? 'RESERVANCE Grand Hotel';
             $payload['briefing'] = $config['scenario']['briefing'] ?? $activity->instructions;
+            $payload['scenarios'] = SimulationEngine::publicScenarios($config);
+            $payload['manual_computation'] = ! empty($config['scenario']['scoring']['manual_computation']);
         }
 
         return response()->json([

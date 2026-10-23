@@ -51,16 +51,14 @@ export function validateProgramForm(form) {
 }
 
 export function sanitizeSectionName(value) {
-  return value.replace(/[^A-Za-z]/g, '').toUpperCase()
+  return String(value || '').replace(/\D/g, '').replace(/^0+/, '').slice(0, 2)
 }
 
 export function validateSectionForm(form) {
   const errors = {}
-  const sectionNamePattern = /^[A-Za-z]+$/
 
   if (!form.program_id) errors.program_id = 'Program is required.'
-  if (!form.name?.trim()) errors.name = 'Section name is required.'
-  else if (!sectionNamePattern.test(form.name.trim())) errors.name = 'Letters only — no numbers (use Year level for the number).'
+  if (!sanitizeSectionName(form.name)) errors.name = 'Enter a section number such as 1.'
   if (!form.year_level) errors.year_level = 'Year level is required.'
   if (!form.semester) errors.semester = 'Semester is required.'
 

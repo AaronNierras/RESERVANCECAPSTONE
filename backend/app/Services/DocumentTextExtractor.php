@@ -180,8 +180,7 @@ class DocumentTextExtractor
 
         $parts = [];
         foreach ($chunks as $chunk) {
-            // (... ) Tj  or  [(...)] TJ
-            if (preg_match_all('/\\(((?:\\\\.|[^\\\\)])*)\\)/s', $chunk, $strings)) {
+            if (preg_match_all('/\\(((?:\\\\.|[^\\\\)]){2,})\\)\\s*Tj/s', $chunk, $strings)) {
                 foreach ($strings[1] as $literal) {
                     $value = $this->decodePdfLiteral($literal);
                     if ($this->looksLikeText($value)) {
@@ -189,7 +188,20 @@ class DocumentTextExtractor
                     }
                 }
             }
-            if (preg_match_all('/<([0-9A-Fa-f\\s]+)>\\s*Tj/s', $chunk, $hexes)) {
+            if (preg_match_all('/\\[(.*?)\\]\\s*TJ/s', $chunk, $arrays)) {
+                foreach ($arrays[1] as $array) {
+                    if (! preg_match_all('/\\(((?:\\\\.|[^\\\\)]){2,})\\)/s', $array, $pieces)) {
+                        continue;
+                    }
+                    foreach ($pieces[1] as $literal) {
+                        $value = $this->decodePdfLiteral($literal);
+                        if ($this->looksLikeText($value)) {
+                            $parts[] = $value;
+                        }
+                    }
+                }
+            }
+            if (preg_match_all('/<([0-9A-Fa-f\\s]{4,})>\\s*Tj/s', $chunk, $hexes)) {
                 foreach ($hexes[1] as $hex) {
                     $value = $this->decodePdfHex($hex);
                     if ($this->looksLikeText($value)) {
@@ -239,18 +251,38 @@ class DocumentTextExtractor
     private function looksLikeText(string $value): bool
     {
         $value = trim($value);
-        if ($value === '') {
+        $letters = preg_match_all('/\p{L}/u', $value);
+        if ($letters < 4) {
             return false;
         }
+        $length = mb_strlen($value);
 
-        return (bool) preg_match('/[\p{L}\p{N}]{2,}/u', $value);
+        return $length > 0 && ($letters / $length) >= 0.6;
     }
 
     private function normalizeText(string $text): string
     {
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = preg_replace('/[^\P{C}\n\t]+/u', ' ', $text) ?? $text;
+        $text = str_replace(["\u{FEFF}", "\u{00AD}", "\u{200B}", "\u{200C}", "\u{200D}", "\u{FFFD}"], '', $text);
+        $text = preg_replace('/\(cid:\d+\)/i', ' ', $text) ?? $text;
+        $text = preg_replace('/[\x{2022}\x{2023}\x{2043}\x{25A0}-\x{25FF}\x{2600}-\x{27BF}\x{2190}-\x{21FF}\x{E000}-\x{F8FF}]/u', ' ', $text) ?? $text;
+        $text = preg_replace('/[^\P{C}\n]+/u', ' ', $text) ?? $text;
 
-        return trim(preg_replace('/[ \t]+/u', ' ', preg_replace('/\s*\n\s*/u', "\n", $text) ?? $text) ?? $text);
+        $lines = preg_split('/\R/u', $text) ?: [];
+        $kept = [];
+        foreach ($lines as $line) {
+            $line = trim(preg_replace('/\s+/u', ' ', $line) ?? $line);
+            if ($line === '' || preg_match('/^[\d\W_]+$/u', $line)) {
+                continue;
+            }
+            $letters = preg_match_all('/\p{L}/u', $line);
+            $length = mb_strlen($line);
+            if ($length === 0 || ($letters / $length) < 0.55) {
+                continue;
+            }
+            $kept[] = $line;
+        }
+
+        return trim(preg_replace('/\s+/u', ' ', implode(' ', $kept)) ?? '');
     }
 }

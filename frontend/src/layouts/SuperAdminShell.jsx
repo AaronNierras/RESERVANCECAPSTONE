@@ -7,8 +7,10 @@ const nav = [
   { to: '/program-chair/templates', label: 'Templates' },
   { to: '/program-chair/analytics', label: 'Analytics' },
   { to: '/program-chair/programs', label: 'Programs' },
-  { to: '/program-chair/students', label: 'Students' },
   { to: '/program-chair/faculty', label: 'Faculty' },
+  { to: '/program-chair/registration', label: 'Registration' },
+  { to: '/program-chair/history', label: 'Recent activity' },
+  { to: '/program-chair/achievements', label: 'Achievements' },
 ]
 
 export default function SuperAdminShell() {

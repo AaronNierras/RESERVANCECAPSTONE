@@ -153,10 +153,27 @@ export default function ReservationPanel({ hotel, onBook, loading }) {
                 <span>Nightly rate ({rateLabel(form.rate_type)})</span>
                 <strong>{formatPeso(nightlyRate)}</strong>
               </div>
-              <div className="hotel-rate-summary__row hotel-rate-summary__row--total">
-                <span>Estimated stay total ({form.nights} night{form.nights === 1 ? '' : 's'})</span>
-                <strong>{formatPeso(estimatedTotal)}</strong>
-              </div>
+              {!hotel?.manual_computation && (
+                <div className="hotel-rate-summary__row hotel-rate-summary__row--total">
+                  <span>Estimated stay total ({form.nights} night{form.nights === 1 ? '' : 's'})</span>
+                  <strong>{formatPeso(estimatedTotal)}</strong>
+                </div>
+              )}
+            </div>
+          )}
+          {hotel?.manual_computation && (
+            <div className="hotel-field">
+              <label htmlFor="computed-stay">Stay total you computed</label>
+              <input
+                id="computed-stay"
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.computed_total ?? ''}
+                onChange={(e) => set('computed_total', e.target.value)}
+                required
+              />
+              <span className="hotel-field__hint">Multiply the nightly rate by the number of nights. The system checks your figure.</span>
             </div>
           )}
         </section>

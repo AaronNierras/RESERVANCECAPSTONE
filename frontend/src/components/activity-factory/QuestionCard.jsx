@@ -73,65 +73,10 @@ export default function QuestionCard({
           id={`q-body-${index}`}
           className="af-textarea"
           rows={3}
-          value={question.body}
+          value={question.body ?? ''}
           onChange={(e) => update({ body: e.target.value })}
           placeholder="Enter your question"
         />
-      </div>
-
-      <div className="af-question__section">
-        <div className="af-form-grid af-form-grid--2">
-          <div className="af-field">
-            <label htmlFor={`q-timer-${index}`}>Time limit (min 5 sec)</label>
-            <input
-              id={`q-timer-${index}`}
-              className="af-input"
-              type="number"
-              min="5"
-              placeholder="Optional"
-              value={question.timer_seconds}
-              onChange={(e) => update({ timer_seconds: e.target.value })}
-            />
-          </div>
-          <div className="af-field">
-            <label>Question image</label>
-            <p className="af-section-sub af-section-sub--compact">
-              JPEG, PNG, or WebP up to 10MB. Auto-resized to WebP for faster loading.
-            </p>
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImage} disabled={uploading} />
-            {uploading && <span className="af-save-state is-saving">Optimizing and uploading...</span>}
-            {uploadNote && !uploading && <span className="af-save-state">{uploadNote}</span>}
-            {meta.image_url && (
-              <div className="af-image-preview">
-                <img src={meta.image_url} alt={`Question ${index + 1}`} />
-                <button type="button" className="af-btn af-btn--ghost" style={{ width: '100%', borderRadius: 0 }} onClick={() => updateMeta({ image_path: '', image_url: '' })}>
-                  Remove image
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="af-question__options">
-          <label className="af-toggle">
-            <input
-              type="checkbox"
-              checked={Boolean(meta.manual_checking)}
-              onChange={(e) => updateMeta({ manual_checking: e.target.checked })}
-            />
-            Require manual checking
-          </label>
-          {question.type === 'mcq' && (
-            <label className="af-toggle">
-              <input
-                type="checkbox"
-                checked={Boolean(meta.allow_multiple_correct)}
-                onChange={(e) => updateMeta({ allow_multiple_correct: e.target.checked })}
-              />
-              Allow multiple correct answers
-            </label>
-          )}
-        </div>
       </div>
 
       {question.type === 'mcq' && (
@@ -143,7 +88,7 @@ export default function QuestionCard({
                 <span className="af-choice-label">{choice.label}</span>
                 <input
                   className="af-input"
-                  value={choice.text}
+                  value={choice.text ?? ''}
                   onChange={(e) => {
                     const choices = [...question.choices]
                     choices[ci] = { ...choice, text: e.target.value }
@@ -231,6 +176,61 @@ export default function QuestionCard({
           </button>
         </div>
       )}
+
+      <details className="af-question__more">
+        <summary>Timer, image, and checking</summary>
+        <div className="af-form-grid af-form-grid--2">
+          <div className="af-field">
+            <label htmlFor={`q-timer-${index}`}>Time limit (min 5 sec)</label>
+            <input
+              id={`q-timer-${index}`}
+              className="af-input"
+              type="number"
+              min="5"
+              placeholder="Optional"
+              value={question.timer_seconds ?? ''}
+              onChange={(e) => update({ timer_seconds: e.target.value })}
+            />
+          </div>
+          <div className="af-field">
+            <label>Question image</label>
+            <p className="af-section-sub af-section-sub--compact">
+              JPEG, PNG, or WebP up to 10MB. Auto-resized to WebP for faster loading.
+            </p>
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImage} disabled={uploading} />
+            {uploading && <span className="af-save-state is-saving">Optimizing and uploading...</span>}
+            {uploadNote && !uploading && <span className="af-save-state">{uploadNote}</span>}
+            {meta.image_url && (
+              <div className="af-image-preview">
+                <img src={meta.image_url} alt={`Question ${index + 1}`} />
+                <button type="button" className="af-btn af-btn--ghost" style={{ width: '100%', borderRadius: 0 }} onClick={() => updateMeta({ image_path: '', image_url: '' })}>
+                  Remove image
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="af-question__options">
+          <label className="af-toggle">
+            <input
+              type="checkbox"
+              checked={Boolean(meta.manual_checking)}
+              onChange={(e) => updateMeta({ manual_checking: e.target.checked })}
+            />
+            Require manual checking
+          </label>
+          {question.type === 'mcq' && (
+            <label className="af-toggle">
+              <input
+                type="checkbox"
+                checked={Boolean(meta.allow_multiple_correct)}
+                onChange={(e) => updateMeta({ allow_multiple_correct: e.target.checked })}
+              />
+              Allow multiple correct answers
+            </label>
+          )}
+        </div>
+      </details>
 
       {errors.length > 0 && (
         <ul className="af-error" style={{ margin: '1rem 0 0', paddingLeft: '1.1rem' }}>

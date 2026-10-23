@@ -28,7 +28,9 @@ class Section extends Model
 
     public function displayLabel(?string $programName = null): string
     {
-        $programName ??= $this->relationLoaded('program') ? $this->program?->name : null;
+        if ($this->relationLoaded('program') && $this->program) {
+            $programName = $this->program->sectionCode();
+        }
 
         if ($programName && $this->year_level) {
             $label = trim("{$programName} {$this->year_level}-{$this->name}");

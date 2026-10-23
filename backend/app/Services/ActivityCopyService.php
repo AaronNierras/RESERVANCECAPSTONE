@@ -21,6 +21,12 @@ class ActivityCopyService
             $copy->title = $titlePrefix.$activity->title;
             $copy->status = 'draft';
             $copy->created_by = $newOwner->id;
+            $copy->published_at = null;
+            $copy->opened_at = null;
+            $copy->closed_at = null;
+            $copy->published_by = null;
+            $copy->opened_by = null;
+            $copy->closed_by = null;
 
             if ($resetSchedule) {
                 $copy->starts_at = null;

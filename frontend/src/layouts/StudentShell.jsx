@@ -6,7 +6,7 @@ const nav = [
   { to: '/student/history', label: 'History' },
   { to: '/student/scores', label: 'Scores' },
   { to: '/student/leaderboards', label: 'Leaderboards' },
-  { to: '/student/badges', label: 'Badges' },
+  { to: '/student/badges', label: 'Achievements' },
   { to: '/student/tutorial', label: 'Tutorial' },
 ]
 

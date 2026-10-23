@@ -11,7 +11,7 @@ export default function TemplatesPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Templates" description="Reusable activity templates." />
+      <PageHeader title="Templates" description="Save an activity as a faculty-shared template. Faculty copy it into their own activity, then edit that copy." />
       <div className="grid gap-4 md:grid-cols-2">
         {templates.map((t) => (
           <div key={t.id} className="card-gold-border p-4">
